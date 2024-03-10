@@ -106,7 +106,10 @@ class VECStationAgent(Agent):
         self.vehicle_distance = distance(self.pos, demo_vehicle.pos)
 
         for vehicle in self.vehicles:
-            # print(self.pos, vehicle.pos)
+            # Check if vehicle is moving towards the station
+            if is_moving_towards(vehicle.pos, vehicle.angle, self.pos):
+                continue
+            # Check if vehicle is within the handover threshold
             dist = distance(self.pos, vehicle.pos)
             if dist > self.threshold * self.range:
                 # Try to find a neighbor station to hand over the vehicle
@@ -115,8 +118,10 @@ class VECStationAgent(Agent):
                 neighbors = [(distance(x.pos, vehicle.pos) / x.range, x) for x in self.neighbors if x != self]
                 sorted_neighbors = sorted(neighbors, key=lambda x: x[0])
                 for ratio, neighbor in sorted_neighbors:
+                    # If the ratio is greater than 1, the neighbor is too far away
                     if ratio > 1:
                         break
+                    # Check if the vehicle is moving towards the neighbor
                     if not is_moving_towards(vehicle.pos, vehicle.angle, neighbor.pos):
                         continue
 
