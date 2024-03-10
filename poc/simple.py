@@ -145,8 +145,13 @@ class VECModel(Model):
         self.space = ContinuousSpace(width, height, False)  # Non-toroidal space
         self.schedule = BaseScheduler(self)
 
+        def vehicle_count_collector(a: Agent):
+            if isinstance(a, VECStationAgent):
+                return len(a.vehicles)
+            return None
+
         self.datacollector = mesa.DataCollector(
-            agent_reporters={"Distances": "vehicle_distance"}
+            agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": vehicle_count_collector}
         )
 
         self.running = True
@@ -201,11 +206,11 @@ class VECModel(Model):
         self.datacollector.collect(self)
 
 
-def render_distance_chart(mode: VECModel):
+def render_distance_chart(model: VECModel):
     fig = Figure()
     ax = fig.subplots()
 
-    data = mode.datacollector.get_agent_vars_dataframe()['Distances']
+    data = model.datacollector.get_agent_vars_dataframe()['Distances']
     filtered_distances = data.loc[data.index.get_level_values('AgentID') >= 10000]
     df = filtered_distances.unstack(level="AgentID")
 
@@ -216,6 +221,24 @@ def render_distance_chart(mode: VECModel):
     ax.set_title('Distances from VEC stations')
     ax.set_xlabel('Step')
     ax.set_ylabel('Distance')
+    solara.FigureMatplotlib(fig)
+
+
+def render_station_vehicle_count_chart(model: VECModel):
+    fig = Figure()
+    ax = fig.subplots()
+
+    data = model.datacollector.get_agent_vars_dataframe()['StationVehicleCount']
+    filtered_counts = data.loc[data.index.get_level_values('AgentID') >= 10000]
+    df = filtered_counts.unstack(level="AgentID")
+
+    for station_id, color in VEC_STATION_COLORS.items():
+        assert station_id in df.columns
+        df[station_id].plot(ax=ax, color=color)
+
+    ax.set_title('Vehicle count at VEC stations')
+    ax.set_xlabel('Step')
+    ax.set_ylabel('Vehicle count')
     solara.FigureMatplotlib(fig)
 
 
