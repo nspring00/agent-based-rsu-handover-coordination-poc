@@ -1,7 +1,10 @@
 import math
 from typing import Optional
 
+import mesa
+import solara
 from matplotlib import pyplot as plt, patches
+from matplotlib.figure import Figure
 from mesa import Agent, Model
 from mesa.time import BaseScheduler
 from mesa.space import ContinuousSpace
@@ -95,8 +98,13 @@ class VECStationAgent(Agent):
         self.neighbors = neighbors if neighbors else []
         self.vehicles = []
         self.threshold = 0.7
+        self.vehicle_distance = None
 
     def step(self):
+
+        demo_vehicle = self.model.vehicle
+        self.vehicle_distance = distance(self.pos, demo_vehicle.pos)
+
         for vehicle in self.vehicles:
             # print(self.pos, vehicle.pos)
             dist = distance(self.pos, vehicle.pos)
@@ -131,6 +139,10 @@ class VECModel(Model):
 
         self.space = ContinuousSpace(width, height, False)  # Non-toroidal space
         self.schedule = BaseScheduler(self)
+
+        self.datacollector = mesa.DataCollector(
+            agent_reporters={"Distances": "vehicle_distance"}
+        )
 
         self.running = True
 
@@ -174,8 +186,32 @@ class VECModel(Model):
         vehicle.station = self.vec_stations[0]
         self.vec_stations[0].vehicles.append(vehicle)
 
+        for station in self.vec_stations:
+            station.vehicle_distance = distance(station.pos, vehicle.pos)
+
+        self.datacollector.collect(self)
+
     def step(self):
         self.schedule.step()
+        self.datacollector.collect(self)
+
+
+def render_distance_chart(mode: VECModel):
+    fig = Figure()
+    ax = fig.subplots()
+
+    data = mode.datacollector.get_agent_vars_dataframe()['Distances']
+    filtered_distances = data.loc[data.index.get_level_values('AgentID') >= 10000]
+    df = filtered_distances.unstack(level="AgentID")
+
+    for station_id, color in VEC_STATION_COLORS.items():
+        assert station_id in df.columns
+        df[station_id].plot(ax=ax, color=color)
+
+    ax.set_title('Distances from VEC stations')
+    ax.set_xlabel('Step')
+    ax.set_ylabel('Distance')
+    solara.FigureMatplotlib(fig)
 
 
 def main():
@@ -190,6 +226,8 @@ def main():
 
     vehicle_positions = []  # For recording vehicle positions
     vehicle_angles = []  # For recording vehicle angles
+
+    render_distance_chart(model)
 
     # Run the simulation for 200 steps to observe the vehicle's movement and rotation
     for i in range(400):
