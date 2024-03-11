@@ -5,9 +5,10 @@ import mesa
 import solara
 from matplotlib import pyplot as plt, patches
 from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle, Circle
 from mesa import Agent, Model
 from mesa.time import BaseScheduler
-from mesa.space import ContinuousSpace
+from mesa.space import ContinuousSpace, FloatCoordinate
 import numpy as np
 
 # Constants for the simulation, adjusted for demonstration
@@ -183,27 +184,96 @@ class VECModel(Model):
         for i in range(4):
             self.vec_stations[i].neighbors = [self.vec_stations[(i + 1) % 4], self.vec_stations[(i + 3) % 4]]
 
-        # Create a vehicle with the defined waypoints
-        vehicle = VehicleAgent(1, self, speed, waypoints)
-        self.vehicle = vehicle
-        self.schedule.add(vehicle)
-        self.agents.append(vehicle)
+        vehicle_id = 1
 
-        # Place the vehicle at the first waypoint
-        self.space.place_agent(vehicle, waypoints[0])
+        def spawn_vehicle(pos: FloatCoordinate, angle, wp_offset, reverse=False):
+            nonlocal vehicle_id
+            wps = self.waypoints[::-1] if reverse else self.waypoints
+            vehicle = VehicleAgent(vehicle_id, self, speed, wps)
+            vehicle.angle = angle
+            vehicle.current_waypoint_index = wp_offset
+            self.schedule.add(vehicle)
+            self.agents.append(vehicle)
 
-        # Connect vehicle to initial VEC station
-        vehicle.station = self.vec_stations[0]
-        self.vec_stations[0].vehicles.append(vehicle)
+            self.space.place_agent(vehicle, pos)
+            vehicle_id += 1
 
-        for station in self.vec_stations:
-            station.vehicle_distance = distance(station.pos, vehicle.pos)
+            station = min(self.vec_stations, key=lambda x: distance(x.pos, vehicle.pos))
+            station.vehicles.append(vehicle)
+            vehicle.station = station
+
+            if vehicle_id == 2:
+                self.vehicle = vehicle
+                for station in self.vec_stations:
+                    station.vehicle_distance = distance(station.pos, vehicle.pos)
+
+        spawn_vehicle(waypoints[0], 0, 0)
+        spawn_vehicle((waypoints[1][0], waypoints[1][1] + 50), 90, 2)
+        spawn_vehicle((waypoints[3][0] + 20, waypoints[3][1]), 0, 1, True)
 
         self.datacollector.collect(self)
 
     def step(self):
         self.schedule.step()
         self.datacollector.collect(self)
+
+
+def agent_portrayal(agent):
+    # Render vehicle agent
+    if isinstance(agent, VehicleAgent):
+        return {
+            "color": VEC_STATION_COLORS[agent.station.unique_id],
+            "s": 50,
+        }
+
+    # Render VEC station agent
+    if isinstance(agent, VECStationAgent):
+        portrayal = {
+            "shape": "rect",
+            "color": VEC_STATION_COLORS[agent.unique_id],
+            "filled": "true",
+            "layer": 0,
+            "w": 1,
+            "h": 1,
+        }
+        return portrayal
+
+    assert False
+
+
+def render_model(model):
+    fig = Figure()
+    ax = fig.subplots()
+
+    min_x = min(waypoint[0] for waypoint in model.waypoints)
+    max_x = max(waypoint[0] for waypoint in model.waypoints)
+    min_y = min(waypoint[1] for waypoint in model.waypoints)
+    max_y = max(waypoint[1] for waypoint in model.waypoints)
+    road_width = max_x - min_x
+    road_height = max_y - min_y
+
+    # Draw the road
+    road = Rectangle((min_x, min_y), road_width, road_height, linewidth=3, edgecolor='gray', facecolor='none')
+    ax.add_patch(road)
+
+    # Draw all agents
+    for agent in model.agents:
+        if isinstance(agent, VehicleAgent):
+            ax.add_patch(Circle(agent.pos, 3, facecolor=VEC_STATION_COLORS[agent.station.unique_id], edgecolor='black'))
+            ax.text(agent.pos[0], agent.pos[1], str(agent.unique_id), ha='center', va='center')
+        elif isinstance(agent, VECStationAgent):
+            color = VEC_STATION_COLORS[agent.unique_id]
+            ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
+            range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
+            ax.add_patch(range_circle)
+            range_circle = Circle(agent.pos, agent.threshold * agent.range, color=color, fill=False, linestyle='--',
+                                  alpha=0.5)
+            ax.add_patch(range_circle)
+
+    ax.set_xlim(0, model.width)
+    ax.set_ylim(0, model.height)
+
+    solara.FigureMatplotlib(fig)
 
 
 def render_distance_chart(model: VECModel):
