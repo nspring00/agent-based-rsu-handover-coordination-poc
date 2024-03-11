@@ -8,8 +8,6 @@ from mesa import Agent, Model
 from mesa.space import ContinuousSpace, FloatCoordinate
 from mesa.time import BaseScheduler
 
-from poc.render import render_distance_chart
-
 # Constants for the simulation, adjusted for demonstration
 TIME_STEP_MS = 50  # Time step in milliseconds
 TIME_STEP_S = TIME_STEP_MS / 1000.0  # Time step in seconds
@@ -91,45 +89,60 @@ class VehicleAgent(Agent):
 class VECStationAgent(Agent):
     """A VEC station agent with a communication range."""
 
-    def __init__(self, unique_id, model, position, range_m, neighbors=None):
+    def __init__(self, unique_id, model, position, range_m, capacity, neighbors=None):
         super().__init__(unique_id, model)
         self.pos = position
         self.range = range_m
+        self.capacity = capacity
         self.neighbors = neighbors if neighbors else []
         self.vehicles = []
-        self.threshold = 0.7
+        self.distance_threshold = 0.7
+        self.load_threshold = 0.7
         self.vehicle_distance = None
+
+    @property
+    def load(self):
+        return len(self.vehicles)
 
     def step(self):
 
-        demo_vehicle = self.model.vehicle
-        self.vehicle_distance = distance(self.pos, demo_vehicle.pos)
+        # Only temporary for demonstration
+        self.vehicle_distance = distance(self.pos, self.model.vehicle.pos)
 
-        for vehicle in self.vehicles:
-            # Check if vehicle is moving towards the station
-            if is_moving_towards(vehicle.pos, vehicle.angle, self.pos):
+        for vehicle in list(self.vehicles):
+            # Check if vehicle is exiting the station's range soon
+            if not self.is_vehicle_exiting(vehicle):
                 continue
-            # Check if vehicle is within the handover threshold
-            dist = distance(self.pos, vehicle.pos)
-            if dist > self.threshold * self.range:
-                # Try to find a neighbor station to hand over the vehicle
-                # Sort neighbors by distance to vehicle divided by range
-                # This will prioritize neighbors that are closer to the vehicle and have a larger range
-                neighbors = [(distance(x.pos, vehicle.pos) / x.range, x) for x in self.neighbors if x != self]
-                sorted_neighbors = sorted(neighbors, key=lambda x: x[0])
-                for ratio, neighbor in sorted_neighbors:
-                    # If the ratio is greater than 1, the neighbor is too far away
-                    if ratio > 1:
-                        break
-                    # Check if the vehicle is moving towards the neighbor
-                    if not is_moving_towards(vehicle.pos, vehicle.angle, neighbor.pos):
-                        continue
 
-                    # Hand over the vehicle to the best neighbor
-                    self.vehicles.remove(vehicle)
-                    neighbor.vehicles.append(vehicle)
-                    vehicle.station = neighbor
-                    print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+            self.attempt_handover(vehicle)
+
+    def attempt_handover(self, vehicle: VehicleAgent):
+        # Try to find a neighbor station to hand over the vehicle
+        # Sort neighbors by distance to vehicle divided by range
+        # This will prioritize neighbors that are closer to the vehicle and have a larger range
+        neighbors = [(distance(x.pos, vehicle.pos) / x.range, x) for x in self.neighbors if x != self]
+        sorted_neighbors = sorted(neighbors, key=lambda x: x[0])
+
+        for ratio, neighbor in sorted_neighbors:
+            # If the ratio is greater than 1, the neighbor is too far away (and so are the rest)
+            if ratio > 1:
+                break
+
+            if neighbor.load < neighbor.capacity and is_moving_towards(vehicle.pos, vehicle.angle, neighbor.pos):
+                # Hand over the vehicle to the best neighbor
+                self.vehicles.remove(vehicle)
+                neighbor.vehicles.append(vehicle)
+                vehicle.station = neighbor
+                print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+                return
+
+        # TODO What to do if handover is unavoidable (e.g. capacity is full)?
+
+    def is_vehicle_exiting(self, vehicle: VehicleAgent):
+        # Predict if the vehicle will exit the station's range soon
+        # TODO create more precise logic, e.g. based on vehicle speed, distance and range
+        return (distance(self.pos, vehicle.pos) > self.range * self.distance_threshold
+                and not is_moving_towards(vehicle.pos, vehicle.angle, self.pos))
 
     def __repr__(self):
         return f"VECStation{self.unique_id}"
@@ -174,7 +187,7 @@ class VECModel(Model):
         ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, pos, 45)
+            station = VECStationAgent(10000 + i, self, pos, 45, 10)
             self.vec_stations.append(station)
             self.space.place_agent(station, pos)
             self.schedule.add(station)
@@ -230,7 +243,7 @@ def main():
     vehicle_positions = []  # For recording vehicle positions
     vehicle_angles = []  # For recording vehicle angles
 
-    render_distance_chart(model)
+    # render_distance_chart(model)
 
     # Run the simulation for 200 steps to observe the vehicle's movement and rotation
     for i in range(400):

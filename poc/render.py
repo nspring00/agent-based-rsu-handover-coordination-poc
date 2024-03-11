@@ -53,7 +53,7 @@ def render_model(model):
             ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
             range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
             ax.add_patch(range_circle)
-            range_circle = Circle(agent.pos, agent.threshold * agent.range, color=color, fill=False, linestyle='--',
+            range_circle = Circle(agent.pos, agent.distance_threshold * agent.range, color=color, fill=False, linestyle='--',
                                   alpha=0.5)
             ax.add_patch(range_circle)
 
