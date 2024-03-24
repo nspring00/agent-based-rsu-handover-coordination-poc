@@ -2,12 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+import matplotlib
+
+matplotlib.use('TkAgg')
+
 DATASET_PATH = '../datasets/vanet-trace-creteil-20130924-0700-0900/vanet-trace-creteil-20130924-0700-0900.csv'
 
-MIN_X = 1000
-MAX_X = 1400
-MIN_Y = 400
-MAX_Y = 800
+MIN_X = 1131
+MAX_X = 1330
+MIN_Y = 511
+MAX_Y = 710
 
 
 def main():
@@ -15,7 +19,7 @@ def main():
     df = pd.read_csv(DATASET_PATH, sep=';')
 
     # Print the first 5 rows of the dataframe
-    print(df.head())
+    # print(df.head())
 
     # Split the data by vehicle_id
     # vehicle_ids = df['vehicle_id'].unique()
@@ -34,7 +38,7 @@ def main():
 
     # print(len(positions))
 
-    positions = set(map(tuple, positions))
+    # positions = set(map(tuple, positions))
 
     # print(len(positions))
 
@@ -56,27 +60,43 @@ def main():
 
     # print(*grid)
 
-    fig, ax = plt.subplots()
+    print(grid.shape)
 
-    ax.imshow(grid, cmap='gray')
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_title('Roads')
-    ax.invert_yaxis()
+    # fig, ax = plt.subplots()
+    #
+    # ax.imshow(grid, cmap='gray')
+    # ax.set_xlabel('x')
+    # ax.set_ylabel('y')
+    # ax.set_title('Roads')
+    # ax.invert_yaxis()
+    #
+    # plt.show()
 
-    plt.show()
+    df["vehicle_x"] = df["vehicle_x"] - MIN_X
+    df["vehicle_y"] = df["vehicle_y"] - MIN_Y
 
-    # Use matplotlib to visualize the grid
-    plt.imshow(grid, cmap='gray')
+    grouped = df.groupby('timestep_time')
 
-    plt.xlabel('x')
-    plt.ylabel('y')
+    plt.figure(figsize=(10, 6))
 
-    plt.tight_layout()
+    columns = ["vehicle_id", "vehicle_x", "vehicle_y", "vehicle_lane", "vehicle_speed", "vehicle_type"]
+    for timestamp in grouped.groups.keys():
+        data = grouped.get_group(timestamp)[columns].values
 
-    plt.gca().invert_yaxis()
+        # Clear the previous plot
+        plt.clf()
 
-    plt.show()
+        # Plot current positions
+        plt.imshow(grid, cmap='gray')
+        plt.scatter(data[:, 1], data[:, 2], color='red')
+        plt.title(f'Vehicles at Timestamp: {timestamp}')
+        plt.xlim(0, MAX_X - MIN_X)
+        plt.ylim(0, MAX_Y - MIN_Y)
+        plt.xlabel('X Position')
+        plt.ylabel('Y Position')
+
+        # Display the plot
+        plt.pause(0.2)  # Pause for a quarter of a second (adjustable)
 
 
 if __name__ == '__main__':
