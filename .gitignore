@@ -1,0 +1,7 @@
+# IDE files
+.vscode
+.idea
+
+# For licensing reasons
+datasets/*
+!datasets/.gitkeep
