@@ -152,6 +152,7 @@ class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
     def __init__(self, width, height, speed):
+        super().__init__()
         self.width = width
         self.height = height
 
@@ -169,7 +170,7 @@ class VECModel(Model):
 
         self.running = True
 
-        self.agents = []
+        self.agents_list = []
 
         # Define waypoints at the corners of the rectangular road layout
         waypoints_pos_offset = 5
@@ -191,7 +192,7 @@ class VECModel(Model):
             self.vec_stations.append(station)
             self.space.place_agent(station, pos)
             self.schedule.add(station)
-            self.agents.append(station)
+            self.agents_list.append(station)
 
         for i in range(4):
             self.vec_stations[i].neighbors = [self.vec_stations[(i + 1) % 4], self.vec_stations[(i + 3) % 4]]
@@ -205,7 +206,7 @@ class VECModel(Model):
             vehicle.angle = angle
             vehicle.current_waypoint_index = wp_offset
             self.schedule.add(vehicle)
-            self.agents.append(vehicle)
+            self.agents_list.append(vehicle)
 
             self.space.place_agent(vehicle, pos)
             vehicle_id += 1
