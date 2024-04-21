@@ -40,8 +40,22 @@ def main():
 
     grouped = df.groupby('timestep_time')
 
+    save_grid(grid)
+    save_background(grid)
     # draw_positions_timelapse(grouped, grid)
-    create_gif(grouped, grid)
+    # create_gif(grouped, grid)
+
+
+def save_grid(grid):
+    np.save('grid.npy', grid)
+
+
+def save_background(grid):
+    plt.figure(figsize=(4, 4))  # Set the figure size in inches
+    plt.imshow(grid, cmap='gray')
+    plt.axis('off')  # Turn off the axes
+    plt.gca().invert_yaxis()
+    plt.savefig('background.png', bbox_inches='tight', pad_inches=0, dpi=100)  # Save the figure as a jpg
 
 
 def draw_positions_timelapse(grouped, grid):
@@ -71,7 +85,7 @@ def create_gif(grouped, grid):
 
     frames = []  # List to hold the frames
 
-    max_frames = min(300, len(grouped))  # Limit to 300 frames
+    max_frames = min(1000, len(grouped))  # Limit to 300 frames
     print(f"Creating GIF with {max_frames} frames of {len(grouped)} frames.")
 
     timestamp_keys = list(grouped.groups.keys())[:max_frames]
