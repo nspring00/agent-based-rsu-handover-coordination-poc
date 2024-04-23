@@ -59,7 +59,8 @@ class VehicleAgent(Agent):
         self.trace_i = 0
         self.trace = trace
         self.active = False
-        self.angle = 0
+        self.angle = self.trace.trace.iloc[0]['vehicle_angle']
+        self.pos = (self.trace.trace.iloc[0]['vehicle_x'], self.trace.trace.iloc[0]['vehicle_y'])
         self.station: Optional["VECStationAgent"] = None
 
         if trace.first_ts == 0:
@@ -85,7 +86,7 @@ class VehicleAgent(Agent):
 
         self.pos = (state['vehicle_x'], state['vehicle_y'])
         self.angle = state['vehicle_angle']
-        print("Move to", self.pos, "with angle", self.angle)
+        # print("Move to", self.pos, "with angle", self.angle)
         self.model.space.move_agent(self, self.pos)
 
     def step(self):
@@ -190,16 +191,15 @@ class VECModel(Model):
                      (waypoints_pos_offset, height - waypoints_pos_offset)]
         self.waypoints = waypoints
 
-        station_pos_offset = 5
         station_positions = [
-            (waypoints[0][0] + station_pos_offset, waypoints[0][1] + station_pos_offset),
-            (waypoints[1][0] - station_pos_offset, waypoints[1][1] + station_pos_offset),
-            (waypoints[2][0] - station_pos_offset, waypoints[2][1] - station_pos_offset),
-            (waypoints[3][0] + station_pos_offset, waypoints[3][1] - station_pos_offset)
+            (75, 50),
+            (50, 115),
+            (110, 140),
+            (140, 60)
         ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, pos, 45, 10)
+            station = VECStationAgent(10000 + i, self, pos, 45, 1000)
             self.vec_stations.append(station)
             self.space.place_agent(station, pos)
             self.schedule.add(station)
@@ -216,14 +216,14 @@ class VECModel(Model):
             self.schedule.add(vehicle)
             self.agents_list.append(vehicle)
 
-            self.space.place_agent(vehicle, pos)
+            self.space.place_agent(vehicle, vehicle.pos)
             vehicle_id += 1
 
             station = min(self.vec_stations, key=lambda x: distance(x.pos, vehicle.pos))
             station.vehicles.append(vehicle)
             vehicle.station = station
 
-            if trace_id == "VehicleFlowEastToNorth.0":
+            if vehicle.unique_id == 265:
                 self.vehicle = vehicle
 
         for trace_id in TRACES.keys():
@@ -254,8 +254,8 @@ def main():
     # Run the simulation for 200 steps to observe the vehicle's movement and rotation
     for i in range(400):
         model.step()
-        vehicle = model.vehicle
-        if i % 20 == 0:  # Collect position and angle for every 20 steps
+        vehicle: VehicleAgent = model.vehicle
+        if i % 2 == 0 and vehicle.active:  # Collect position and angle for every 20 steps
             output.append(f"Step {i}: Vehicle Position: {vehicle.pos}, Angle: {vehicle.angle:.2f}")
             vehicle_positions.append(vehicle.pos)
             vehicle_angles.append(vehicle.angle)
@@ -266,7 +266,7 @@ def main():
     fig, ax = plt.subplots()
 
     # Plot grid with cmap gray
-    ax.imshow(GRID, cmap='gray', extent=[0, road_width, 0, road_height])
+    ax.imshow(GRID, cmap='gray')
 
     # road = patches.Polygon(model.waypoints, closed=True, fill=False, edgecolor='black', linewidth=2)
     # ax.add_patch(road)
@@ -292,14 +292,14 @@ def main():
         x, y = position
         dx = vehicle_length * np.cos(np.radians(angle))
         dy = vehicle_length * np.sin(np.radians(angle))
-        ax.arrow(x, y, dx, dy, head_width=1, head_length=1, fc='blue', ec='blue')
+        ax.arrow(x, y, dx, dy, head_width=2, head_length=1, fc='blue', ec='blue', linewidth=2)
 
     ax.set_xlim(0, road_width)
     ax.set_ylim(0, road_height)
     # ax.set_aspect('equal')
-    plt.xlabel('Distance (meters)')
-    plt.ylabel('Distance (meters)')
-    plt.title('Recorded Vehicle Movement on a Rectangular Road')
+    plt.xlabel('x (meters)')
+    plt.ylabel('y (meters)')
+    plt.title('Vehicle Movement and Rotation')
     plt.grid(True)
     plt.show()
 

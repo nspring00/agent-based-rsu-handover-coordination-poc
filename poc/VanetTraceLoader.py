@@ -16,7 +16,7 @@ class VehicleTrace:
     first_ts: int
     last_ts: int
     type: str
-    trace: np.ndarray  # ts, x, y, angle, speed, lane
+    trace: pd.DataFrame  # ts, x, y, angle, speed, lane
 
 
 def map_trace(df: pd.DataFrame) -> Dict[str, VehicleTrace]:
@@ -28,6 +28,8 @@ def map_trace(df: pd.DataFrame) -> Dict[str, VehicleTrace]:
 
     df['vehicle_x'] = df['vehicle_x'] - MIN_X
     df['vehicle_y'] = df['vehicle_y'] - MIN_Y
+
+    df['vehicle_angle'] = df['vehicle_angle'] - 90
 
     # Sort the DataFrame by 'vehicle_id' and 'timestep_time'
     df = df.sort_values(by=['timestep_time', 'vehicle_id'])
