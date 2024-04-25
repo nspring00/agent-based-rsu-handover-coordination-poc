@@ -1,5 +1,5 @@
 import math
-from typing import Optional
+from typing import Optional, List
 
 import mesa
 import numpy as np
@@ -8,7 +8,8 @@ from mesa import Agent, Model
 from mesa.space import ContinuousSpace, FloatCoordinate
 from mesa.time import BaseScheduler
 
-import VanetTraceLoader as vanetLoader
+import poc.VanetTraceLoader as vanetLoader
+import poc.simple as simple
 
 # Constants for the simulation, adjusted for demonstration
 TIME_STEP_MS = 500  # Time step in milliseconds
@@ -50,11 +51,12 @@ def is_moving_towards(vehicle_pos, vehicle_orientation, station_pos):
     return dot_product > 0
 
 
-class VehicleAgent(Agent):
+class VehicleAgent(simple.VehicleAgent):
     """A vehicle agent that follows a list of waypoints and calculates its angle."""
 
+    # TODO fix inheritance stuff
     def __init__(self, unique_id, model, trace: vanetLoader.VehicleTrace):
-        super().__init__(unique_id, model)
+        super().__init__(unique_id, model, 0, [])
         self.ts = 0
         self.trace_i = 0
         self.trace = trace
@@ -98,11 +100,12 @@ class VehicleAgent(Agent):
             self.active = False
 
 
-class VECStationAgent(Agent):
+class VECStationAgent(simple.VECStationAgent):
     """A VEC station agent with a communication range."""
 
+    # TODO fix inheritance stuff
     def __init__(self, unique_id, model, position, range_m, capacity, neighbors=None):
-        super().__init__(unique_id, model)
+        super().__init__(unique_id, model, 0, 0, 0)
         self.pos = position
         self.range = range_m
         self.capacity = capacity
@@ -208,30 +211,61 @@ class VECModel(Model):
         for i in range(4):
             self.vec_stations[i].neighbors = [self.vec_stations[(i + 1) % 4], self.vec_stations[(i + 3) % 4]]
 
-        vehicle_id = 1
+        self.vehicle_id = 1
 
-        def spawn_vehicle(trace_id):
-            nonlocal vehicle_id
-            vehicle = VehicleAgent(vehicle_id, self, TRACES[trace_id])
-            self.schedule.add(vehicle)
-            self.agents_list.append(vehicle)
+        # for trace_id in TRACES.keys():
+        #     self.spawn_vehicle(trace_id)
 
-            self.space.place_agent(vehicle, vehicle.pos)
-            vehicle_id += 1
+        self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in TRACES.items()]
+        self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
 
-            station = min(self.vec_stations, key=lambda x: distance(x.pos, vehicle.pos))
-            station.vehicles.append(vehicle)
-            vehicle.station = station
+        self.to_remove: List[VehicleAgent] = []
 
-            if vehicle.unique_id == 265:
-                self.vehicle = vehicle
+        self.vehicle = None
 
-        for trace_id in TRACES.keys():
-            spawn_vehicle(trace_id)
+        self.step_count = 0
 
         self.datacollector.collect(self)
 
+    def spawn_vehicle(self, trace_id, step):
+        vehicle = VehicleAgent(self.vehicle_id, self, TRACES[trace_id])
+        vehicle.ts = step // TIME_STEP_S
+        
+        self.schedule.add(vehicle)
+        self.agents_list.append(vehicle)
+
+        self.space.place_agent(vehicle, vehicle.pos)
+        self.vehicle_id += 1
+
+        station = min(self.vec_stations, key=lambda x: distance(x.pos, vehicle.pos))
+        station.vehicles.append(vehicle)
+        vehicle.station = station
+
+        if vehicle.unique_id == 265:
+            self.vehicle = vehicle
+
+        return vehicle
+
     def step(self):
+
+        while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_count:
+            v = self.to_remove.pop()
+            v.station.vehicles.remove(v)
+            self.agents_list.remove(v)
+            v.remove()
+
+        print(len(self.to_remove), len(self.agents))
+
+        self.step_count += 1
+
+        while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_count:
+            v_trace = self.unplaced_vehicles.pop()
+            v = self.spawn_vehicle(v_trace.id, self.step_count)
+
+            # Insert while sorting on last_ts
+            self.to_remove.append(v)
+            self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
+
         self.schedule.step()
         self.datacollector.collect(self)
 
@@ -255,7 +289,7 @@ def main():
     for i in range(400):
         model.step()
         vehicle: VehicleAgent = model.vehicle
-        if i % 2 == 0 and vehicle.active:  # Collect position and angle for every 20 steps
+        if i % 2 == 0 and vehicle and vehicle.active:  # Collect position and angle for every 20 steps
             output.append(f"Step {i}: Vehicle Position: {vehicle.pos}, Angle: {vehicle.angle:.2f}")
             vehicle_positions.append(vehicle.pos)
             vehicle_angles.append(vehicle.angle)
