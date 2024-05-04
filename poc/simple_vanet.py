@@ -67,8 +67,6 @@ class VehicleAgent(simple.VehicleAgent):
         self.pos = (self.trace.trace.iloc[0]['vehicle_x'], self.trace.trace.iloc[0]['vehicle_y'])
         self.station: Optional["VECStationAgent"] = None
 
-        model.space.place_agent(self, self.pos)
-
         # if trace.first_ts == 0:
         #     self.do_step()
 
@@ -216,7 +214,6 @@ class VECModel(Model):
         for i, pos in enumerate(station_positions, start=1):
             station = VECStationAgent(10000 + i, self, pos, 50, 1000)
             self.vec_stations.append(station)
-            self.space.place_agent(station, pos)
             self.schedule.add(station)
             self.agents_list.append(station)
 

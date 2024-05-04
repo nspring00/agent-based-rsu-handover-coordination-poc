@@ -11,11 +11,11 @@ def agent_portrayal(agent):
         if hasattr(agent, 'active') and not agent.active:
             return {
                 "color": "black",
-                "s": 50,
+                "size": 50,
             }
         return {
             "color": VEC_STATION_COLORS[agent.station.unique_id],
-            "s": 50,
+            "size": 50,
         }
 
     # TODO check how to get size/shape working
@@ -24,7 +24,7 @@ def agent_portrayal(agent):
         portrayal = {
             # "shape": "rect",
             "color": VEC_STATION_COLORS[agent.unique_id],
-            "s": 100,
+            "size": 100,
             # "filled": "true",
             # "layer": 0,
             # "w": 1,
