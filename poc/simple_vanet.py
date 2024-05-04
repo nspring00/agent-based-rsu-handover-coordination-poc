@@ -14,6 +14,8 @@ import poc.simple as simple
 # Constants for the simulation, adjusted for demonstration
 TIME_STEP_MS = 500  # Time step in milliseconds
 TIME_STEP_S = TIME_STEP_MS / 1000.0  # Time step in seconds
+STEPS_PER_SECOND = 1 // TIME_STEP_S  # Number of steps per second
+assert STEPS_PER_SECOND * TIME_STEP_S == 1.0, "Time step conversion error"
 VEHICLE_SPEED_FAST_MS = 60 * (1000 / 3600)  # 60 km/h in m/s
 
 VEC_STATION_COLORS = {
@@ -55,36 +57,41 @@ class VehicleAgent(simple.VehicleAgent):
     """A vehicle agent that follows a list of waypoints and calculates its angle."""
 
     # TODO fix inheritance stuff
-    def __init__(self, unique_id, model, trace: vanetLoader.VehicleTrace):
+    def __init__(self, unique_id, model: "VECModel", trace: vanetLoader.VehicleTrace):
         super().__init__(unique_id, model, 0, [])
-        self.ts = 0
+        self.invocation = 0
         self.trace_i = 0
         self.trace = trace
-        self.active = False
+        self.active = True
         self.angle = self.trace.trace.iloc[0]['vehicle_angle']
         self.pos = (self.trace.trace.iloc[0]['vehicle_x'], self.trace.trace.iloc[0]['vehicle_y'])
         self.station: Optional["VECStationAgent"] = None
 
-        if trace.first_ts == 0:
-            self.do_step(0)
+        model.space.place_agent(self, self.pos)
 
-    def do_step(self, ts):
+        # if trace.first_ts == 0:
+        #     self.do_step()
 
-        self.active = True
+    def do_step(self):
+        # self.active = True
+        # state = self.trace.trace.iloc[self.trace_i]
+        # if state['timestep_time'] != ts and state['timestep_time'] != ts - 1:
+        #     raise ValueError("Time step mismatch")
+        #
+        # if state['timestep_time'] == ts:
+        #     return
+        #
+        # self.trace_i += 1
+        # state = self.trace.trace.iloc[self.trace_i]
+        #
+        # if state['timestep_time'] > ts:
+        #     raise ValueError("Time step jumped to the future")
+        # if state['timestep_time'] < ts:
+        #     raise ValueError("Time step still in the past")
+
         state = self.trace.trace.iloc[self.trace_i]
-        if state['timestep_time'] != ts and state['timestep_time'] != ts - 1:
-            raise ValueError("Time step mismatch")
-
-        if state['timestep_time'] == ts:
-            return
-
+        assert state['timestep_time'] == self.trace_i + self.trace.first_ts, "Time step mismatch"
         self.trace_i += 1
-        state = self.trace.trace.iloc[self.trace_i]
-
-        if state['timestep_time'] > ts:
-            raise ValueError("Time step jumped to the future")
-        if state['timestep_time'] < ts:
-            raise ValueError("Time step still in the past")
 
         self.pos = (state['vehicle_x'], state['vehicle_y'])
         self.angle = state['vehicle_angle']
@@ -92,12 +99,17 @@ class VehicleAgent(simple.VehicleAgent):
         self.model.space.move_agent(self, self.pos)
 
     def step(self):
-        self.ts += 1
-        external_ts = int(self.ts * TIME_STEP_S)
-        if self.trace.first_ts <= external_ts <= self.trace.last_ts:
-            self.do_step(external_ts)
-        if external_ts > self.trace.last_ts:
-            self.active = False
+        # TODO check there are no "holes" in timestamp list for all vehicles
+        if self.invocation % STEPS_PER_SECOND == 0:
+            self.do_step()
+
+        self.invocation += 1
+
+        # external_ts = int(self.ts * TIME_STEP_S)
+        # if self.trace.first_ts <= external_ts <= self.trace.last_ts:
+        #     self.do_step(external_ts)
+        # if external_ts > self.trace.last_ts:
+        #     self.active = False
 
 
 class VECStationAgent(simple.VECStationAgent):
@@ -202,7 +214,7 @@ class VECModel(Model):
         ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, pos, 45, 1000)
+            station = VECStationAgent(10000 + i, self, pos, 50, 1000)
             self.vec_stations.append(station)
             self.space.place_agent(station, pos)
             self.schedule.add(station)
@@ -219,10 +231,15 @@ class VECModel(Model):
         self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in TRACES.items()]
         self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
 
+        # ONLY DEBUG
+        # self.unplaced_vehicles = self.unplaced_vehicles[:1]
+        # self.unplaced_vehicles = list(filter(lambda x: x.id == 'VehicleFlowEastToNorth.0', self.unplaced_vehicles))
+
         self.to_remove: List[VehicleAgent] = []
 
         self.vehicle = None
 
+        self.step_second = 0
         self.step_count = 0
 
         self.datacollector.collect(self)
@@ -230,11 +247,10 @@ class VECModel(Model):
     def spawn_vehicle(self, trace_id, step):
         vehicle = VehicleAgent(self.vehicle_id, self, TRACES[trace_id])
         vehicle.ts = step // TIME_STEP_S
-        
+
         self.schedule.add(vehicle)
         self.agents_list.append(vehicle)
 
-        self.space.place_agent(vehicle, vehicle.pos)
         self.vehicle_id += 1
 
         station = min(self.vec_stations, key=lambda x: distance(x.pos, vehicle.pos))
@@ -248,26 +264,29 @@ class VECModel(Model):
 
     def step(self):
 
-        while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_count:
-            v = self.to_remove.pop()
-            v.station.vehicles.remove(v)
-            self.agents_list.remove(v)
-            v.remove()
+        if self.step_count % STEPS_PER_SECOND == 0:
+            while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_second:
+                v = self.to_remove.pop()
+                v.station.vehicles.remove(v)
+                self.agents_list.remove(v)
+                self.schedule.remove(v)
+                v.remove()
 
-        print(len(self.to_remove), len(self.agents))
+            assert len(self.to_remove) == len(self.agents) - 4, "Agent count mismatch"  # 4 is number of stations
+            self.step_second += 1
 
-        self.step_count += 1
+            while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_second:
+                v_trace = self.unplaced_vehicles.pop()
+                v = self.spawn_vehicle(v_trace.id, self.step_second)
 
-        while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_count:
-            v_trace = self.unplaced_vehicles.pop()
-            v = self.spawn_vehicle(v_trace.id, self.step_count)
-
-            # Insert while sorting on last_ts
-            self.to_remove.append(v)
-            self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
+                # Insert while sorting on last_ts
+                self.to_remove.append(v)
+                self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
 
         self.schedule.step()
         self.datacollector.collect(self)
+
+        self.step_count += 1
 
 
 def main():
@@ -286,7 +305,7 @@ def main():
     # render_distance_chart(model)
 
     # Run the simulation for 200 steps to observe the vehicle's movement and rotation
-    for i in range(400):
+    for i in range(4000):
         model.step()
         vehicle: VehicleAgent = model.vehicle
         if i % 2 == 0 and vehicle and vehicle.active:  # Collect position and angle for every 20 steps

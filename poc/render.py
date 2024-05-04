@@ -18,15 +18,17 @@ def agent_portrayal(agent):
             "s": 50,
         }
 
+    # TODO check how to get size/shape working
     # Render VEC station agent
     if isinstance(agent, VECStationAgent):
         portrayal = {
-            "shape": "rect",
+            # "shape": "rect",
             "color": VEC_STATION_COLORS[agent.unique_id],
-            "filled": "true",
-            "layer": 0,
-            "w": 1,
-            "h": 1,
+            "s": 100,
+            # "filled": "true",
+            # "layer": 0,
+            # "w": 1,
+            # "h": 1,
         }
         return portrayal
 
