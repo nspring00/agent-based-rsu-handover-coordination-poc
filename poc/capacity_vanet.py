@@ -182,7 +182,7 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, width, height, speed):
+    def __init__(self, width, height, speed, max_capacity=30):
         super().__init__(speed)
         self.width = width
         self.height = height
@@ -218,7 +218,7 @@ class VECModel(Model):
         ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, pos, 50, 1000)
+            station = VECStationAgent(10000 + i, self, pos, 50, max_capacity)
             self.vec_stations.append(station)
             self.schedule.add(station)
             self.agents_list.append(station)

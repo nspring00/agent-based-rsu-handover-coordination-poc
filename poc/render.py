@@ -113,6 +113,11 @@ def render_station_vehicle_count_chart(model: VECModel):
         assert station_id in df.columns
         df[station_id].plot(ax=ax, color=color)
 
+    if hasattr(model, "max_capacity"):
+        # Draw horizontal line for max capacity
+        ax.axhline(y=model.max_capacity, color='gray', linestyle='--')
+
+
     ax.set_title('Vehicle count at VEC stations')
     ax.set_xlabel('Step')
     ax.set_ylabel('Vehicle count')
