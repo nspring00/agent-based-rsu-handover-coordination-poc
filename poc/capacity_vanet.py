@@ -119,7 +119,7 @@ class VECStationAgent(simple.VECStationAgent):
         self.pos = position
         self.range = range_m
         self.capacity = capacity
-        self.neighbors = neighbors if neighbors else []
+        self.neighbors: List[VECStationAgent] = neighbors if neighbors else []
         self.vehicles = []
         self.distance_threshold = 0.7
         self.load_threshold = 0.7
@@ -134,18 +134,46 @@ class VECStationAgent(simple.VECStationAgent):
         # Only temporary for demonstration
         # self.vehicle_distance = distance(self.pos, self.model.vehicle.pos)
 
-
-
+        # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
         for vehicle in list(self.vehicles):
             # Check if vehicle is exiting the station's range soon
             if not self.is_vehicle_exiting(vehicle):
                 continue
 
+            print(f"Vehicle {vehicle.unique_id} is leaving the station {self.unique_id} range")
             self.attempt_handover(vehicle)
 
-    def calculate_vehicle_handover_score(self, vehicle: VehicleAgent):
-        # Angle between direction station->vehicle and vehicle orientation
+        # TODO move to global
+        # TODO should also consider other stations
+        if self.load < self.load_threshold * self.capacity:
+            return
 
+        # Iterate through vehicles sorted by
+        for vehicle in sorted(self.vehicles, key=lambda x: self.calculate_vehicle_handover_score(x), reverse=True):
+            print(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
+
+            neighbors_with_score = [(x, (x.capacity - x.load - 1) / x.capacity) for x in self.neighbors]
+            neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
+
+            # TODO
+
+    def calculate_vehicle_handover_score(self, vehicle: VehicleAgent):
+        bearing_rad = self.calculate_vehicle_station_bearing(vehicle)
+        vehicle_angle_rad = math.radians(vehicle.angle)
+
+        angle_at_vehicle = bearing_rad - vehicle_angle_rad
+
+        ho_metric = (0.5 * math.cos(angle_at_vehicle) + 0.75) / 1.25 * distance(self.pos, vehicle.pos) / self.range
+
+        return ho_metric
+
+    def calculate_vehicle_station_bearing(self, vehicle: VehicleAgent):
+        # Calculate the difference in x and y coordinates
+        dx = vehicle.pos[0] - self.pos[0]
+        dy = vehicle.pos[1] - self.pos[1]
+
+        # Calculate the angle in radians
+        return math.atan2(dy, dx)
 
     def attempt_handover(self, vehicle: VehicleAgent):
         # Try to find a neighbor station to hand over the vehicle
@@ -186,6 +214,7 @@ class VECModel(Model):
         super().__init__(speed)
         self.width = width
         self.height = height
+        self.max_capacity = max_capacity
 
         self.space = ContinuousSpace(width, height, False)  # Non-toroidal space
         self.schedule = BaseScheduler(self)
@@ -308,7 +337,7 @@ def main():
     # render_distance_chart(model)
 
     # Run the simulation for 200 steps to observe the vehicle's movement and rotation
-    for i in range(4000):
+    for i in range(1000):
         model.step()
         vehicle: VehicleAgent = model.vehicle
         if i % 2 == 0 and vehicle and vehicle.active:  # Collect position and angle for every 20 steps
@@ -344,11 +373,15 @@ def main():
     # Draw vehicles
     vehicle_length = 2  # Length of the vehicle arrow
 
+    print("Vehicle positions")
+
     for position, angle in zip(vehicle_positions, vehicle_angles):
         x, y = position
         dx = vehicle_length * np.cos(np.radians(angle))
         dy = vehicle_length * np.sin(np.radians(angle))
         ax.arrow(x, y, dx, dy, head_width=2, head_length=1, fc='blue', ec='blue', linewidth=2)
+
+        print((angle + 360) % 360)
 
     ax.set_xlim(0, road_width)
     ax.set_ylim(0, road_height)
