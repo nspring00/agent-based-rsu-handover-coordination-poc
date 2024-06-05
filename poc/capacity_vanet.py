@@ -8,8 +8,8 @@ from mesa import Agent, Model
 from mesa.space import ContinuousSpace, FloatCoordinate
 from mesa.time import BaseScheduler
 
-import poc.VanetTraceLoader as vanetLoader
-import poc.simple as simple
+import VanetTraceLoader as vanetLoader
+import simple as simple
 
 # Constants for the simulation, adjusted for demonstration
 TIME_STEP_MS = 500  # Time step in milliseconds
@@ -59,6 +59,7 @@ class VehicleAgent(simple.VehicleAgent):
     # TODO fix inheritance stuff
     def __init__(self, unique_id, model: "VECModel", trace: vanetLoader.VehicleTrace):
         super().__init__(unique_id, model, 0, [])
+        self.offloaded_load = 1
         self.invocation = 0
         self.trace_i = 0
         self.trace = trace
@@ -110,6 +111,29 @@ class VehicleAgent(simple.VehicleAgent):
         #     self.active = False
 
 
+def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: VehicleAgent):
+    bearing_rad = station.calculate_vehicle_station_bearing(vehicle)
+    vehicle_angle_rad = math.radians(vehicle.angle)
+
+    angle_at_vehicle = bearing_rad - vehicle_angle_rad
+
+    ho_metric = (0.5 * math.cos(angle_at_vehicle) + 0.75) / 1.25 * distance(station.pos, vehicle.pos) / station.range
+
+    return ho_metric
+
+
+def calculate_station_suitability_with_vehicle(station: "VECStationAgent", vehicle: VehicleAgent):
+
+    if distance(station.pos, vehicle.pos) > station.range:
+        return 0
+
+    capacity_suitability = (station.capacity - station.load - vehicle.offloaded_load) / station.capacity
+
+    # TODO range, direction, trajectory, etc.
+
+    return capacity_suitability
+
+
 class VECStationAgent(simple.VECStationAgent):
     """A VEC station agent with a communication range."""
 
@@ -152,10 +176,7 @@ class VECStationAgent(simple.VECStationAgent):
         for vehicle in sorted(self.vehicles, key=lambda x: self.calculate_vehicle_handover_score(x), reverse=True):
             print(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
 
-            neighbors_with_score = [(x, (x.capacity - x.load - 1) / x.capacity) for x in self.neighbors]
-            neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
-
-            # TODO
+            self.attempt_handover(vehicle)
 
     def calculate_vehicle_handover_score(self, vehicle: VehicleAgent):
         bearing_rad = self.calculate_vehicle_station_bearing(vehicle)
@@ -176,26 +197,50 @@ class VECStationAgent(simple.VECStationAgent):
         return math.atan2(dy, dx)
 
     def attempt_handover(self, vehicle: VehicleAgent):
-        # Try to find a neighbor station to hand over the vehicle
-        # Sort neighbors by distance to vehicle divided by range
-        # This will prioritize neighbors that are closer to the vehicle and have a larger range
-        neighbors = [(distance(x.pos, vehicle.pos) / x.range, x) for x in self.neighbors if x != self]
-        sorted_neighbors = sorted(neighbors, key=lambda x: x[0])
 
-        for ratio, neighbor in sorted_neighbors:
-            # If the ratio is greater than 1, the neighbor is too far away (and so are the rest)
-            if ratio > 1:
-                break
+        neighbors_with_score = [(x, calculate_station_suitability_with_vehicle(x, vehicle)) for x in self.neighbors]
+        neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
 
-            if neighbor.load < neighbor.capacity and is_moving_towards(vehicle.pos, vehicle.angle, neighbor.pos):
-                # Hand over the vehicle to the best neighbor
-                self.vehicles.remove(vehicle)
-                neighbor.vehicles.append(vehicle)
-                vehicle.station = neighbor
-                print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
-                return
+        print(f"Neighbors with score for vehicle {vehicle.unique_id}:", neighbors_with_score)
 
-        # TODO What to do if handover is unavoidable (e.g. capacity is full)?
+        neighbor, score = neighbors_with_score[0]
+
+        if score == 0:
+            print(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor")
+            return
+
+        # TODO for now just hand over to most suitable one
+        self.vehicles.remove(vehicle)
+        neighbor.vehicles.append(vehicle)
+        vehicle.station = neighbor
+        print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+
+        # TODO
+
+        # TODO dont do it so dumb
+        # For now, take the best one without checking a response
+        #self.
+
+        # # Try to find a neighbor station to hand over the vehicle
+        # # Sort neighbors by distance to vehicle divided by range
+        # # This will prioritize neighbors that are closer to the vehicle and have a larger range
+        # neighbors = [(distance(x.pos, vehicle.pos) / x.range, x) for x in self.neighbors if x != self]
+        # sorted_neighbors = sorted(neighbors, key=lambda x: x[0])
+        #
+        # for ratio, neighbor in sorted_neighbors:
+        #     # If the ratio is greater than 1, the neighbor is too far away (and so are the rest)
+        #     if ratio > 1:
+        #         break
+        #
+        #     if neighbor.load < neighbor.capacity and is_moving_towards(vehicle.pos, vehicle.angle, neighbor.pos):
+        #         # Hand over the vehicle to the best neighbor
+        #         self.vehicles.remove(vehicle)
+        #         neighbor.vehicles.append(vehicle)
+        #         vehicle.station = neighbor
+        #         print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+        #         return
+        #
+        # # TODO What to do if handover is unavoidable (e.g. capacity is full)?
 
     def is_vehicle_exiting(self, vehicle: VehicleAgent):
         # Predict if the vehicle will exit the station's range soon
@@ -247,7 +292,7 @@ class VECModel(Model):
         ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, pos, 50, max_capacity)
+            station = VECStationAgent(10000 + i, self, pos, 60, max_capacity)
             self.vec_stations.append(station)
             self.schedule.add(station)
             self.agents_list.append(station)
