@@ -14,7 +14,7 @@ import simple as simple
 # Constants for the simulation, adjusted for demonstration
 TIME_STEP_MS = 500  # Time step in milliseconds
 TIME_STEP_S = TIME_STEP_MS / 1000.0  # Time step in seconds
-STEPS_PER_SECOND = 1 // TIME_STEP_S  # Number of steps per second
+STEPS_PER_SECOND = int(1 // TIME_STEP_S)  # Number of steps per second
 assert STEPS_PER_SECOND * TIME_STEP_S == 1.0, "Time step conversion error"
 VEHICLE_SPEED_FAST_MS = 60 * (1000 / 3600)  # 60 km/h in m/s
 
@@ -122,16 +122,17 @@ def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: Vehicl
     return ho_metric
 
 
-def calculate_station_suitability_with_vehicle(station: "VECStationAgent", vehicle: VehicleAgent):
-
-    if distance(station.pos, vehicle.pos) > station.range:
+def calculate_station_suitability_with_vehicle(station: "VECStationAgent", vehicle: VehicleAgent,
+                                               current_station: "VECStationAgent"):
+    if station.load > station.capacity:
         return 0
 
     capacity_suitability = (station.capacity - station.load - vehicle.offloaded_load) / station.capacity
+    relative_capacity_suitability = max(10, (current_station.load / current_station.capacity) / (
+            station.load / station.capacity)) if station.load > 0 else 10
+    trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
 
-    # TODO range, direction, trajectory, etc.
-
-    return capacity_suitability
+    return 0.5 * capacity_suitability + 0.5 * trajectory_suitability + 0.3 * relative_capacity_suitability
 
 
 class VECStationAgent(simple.VECStationAgent):
@@ -161,11 +162,16 @@ class VECStationAgent(simple.VECStationAgent):
         # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
         for vehicle in list(self.vehicles):
             # Check if vehicle is exiting the station's range soon
-            if not self.is_vehicle_exiting(vehicle):
+            if calculate_trajectory_suitability(self, vehicle) < 0.8:
                 continue
 
             print(f"Vehicle {vehicle.unique_id} is leaving the station {self.unique_id} range")
-            self.attempt_handover(vehicle)
+            success = self.attempt_handover(vehicle)
+
+            if not success and calculate_trajectory_suitability(self, vehicle) > 0.95:
+                # Force handover
+                print(f"Vehicle {vehicle.unique_id} is being forced to leave the station {self.unique_id}")
+                self.attempt_handover(vehicle, force=True)
 
         # TODO move to global
         # TODO should also consider other stations
@@ -174,9 +180,14 @@ class VECStationAgent(simple.VECStationAgent):
 
         # Iterate through vehicles sorted by
         for vehicle in sorted(self.vehicles, key=lambda x: self.calculate_vehicle_handover_score(x), reverse=True):
+            # TODO move to global
+            # TODO should also consider other stations
+            if self.load < self.load_threshold * self.capacity:
+                return
+
             print(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
 
-            self.attempt_handover(vehicle)
+            self.attempt_handover(vehicle, force=self.load > 0.95 * self.capacity)
 
     def calculate_vehicle_handover_score(self, vehicle: VehicleAgent):
         bearing_rad = self.calculate_vehicle_station_bearing(vehicle)
@@ -196,18 +207,25 @@ class VECStationAgent(simple.VECStationAgent):
         # Calculate the angle in radians
         return math.atan2(dy, dx)
 
-    def attempt_handover(self, vehicle: VehicleAgent):
+    def attempt_handover(self, vehicle: VehicleAgent, force=False) -> bool:
 
-        neighbors_with_score = [(x, calculate_station_suitability_with_vehicle(x, vehicle)) for x in self.neighbors]
+        neighbors_with_score = [(x, calculate_station_suitability_with_vehicle(x, vehicle, self))
+                                for x in self.neighbors if
+                                distance(x.pos, vehicle.pos) < x.range]
         neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
+
+        if len(neighbors_with_score) == 0:
+            if force:
+                print(f"Vehicle {vehicle.unique_id} is leaving coverage area!!")
+            return False
 
         print(f"Neighbors with score for vehicle {vehicle.unique_id}:", neighbors_with_score)
 
         neighbor, score = neighbors_with_score[0]
 
-        if score == 0:
-            print(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor")
-            return
+        if score == 0 and not force:
+            print(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
+            return False
 
         # TODO for now just hand over to most suitable one
         self.vehicles.remove(vehicle)
@@ -215,11 +233,13 @@ class VECStationAgent(simple.VECStationAgent):
         vehicle.station = neighbor
         print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
 
+        return True
+
         # TODO
 
         # TODO dont do it so dumb
         # For now, take the best one without checking a response
-        #self.
+        # self.
 
         # # Try to find a neighbor station to hand over the vehicle
         # # Sort neighbors by distance to vehicle divided by range
@@ -245,8 +265,10 @@ class VECStationAgent(simple.VECStationAgent):
     def is_vehicle_exiting(self, vehicle: VehicleAgent):
         # Predict if the vehicle will exit the station's range soon
         # TODO create more precise logic, e.g. based on vehicle speed, distance and range
-        return (distance(self.pos, vehicle.pos) > self.range * self.distance_threshold
-                and not is_moving_towards(vehicle.pos, vehicle.angle, self.pos))
+        # return (distance(self.pos, vehicle.pos) > self.range * self.distance_threshold
+        #         and not is_moving_towards(vehicle.pos, vehicle.angle, self.pos))
+
+        return calculate_trajectory_suitability(self, vehicle) > 0.9
 
     def __repr__(self):
         return f"VECStation{self.unique_id}"
@@ -340,6 +362,10 @@ class VECModel(Model):
         return vehicle
 
     def step(self):
+        for _ in range(STEPS_PER_SECOND):
+            self.step_internal()
+
+    def step_internal(self):
 
         if self.step_count % STEPS_PER_SECOND == 0:
             while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_second:
