@@ -101,24 +101,28 @@ def render_distance_chart(model: VECModel):
     solara.FigureMatplotlib(fig)
 
 
-def render_station_vehicle_count_chart(model: VECModel):
-    fig = Figure()
-    ax = fig.subplots()
+def make_render_station_vehicle_count_chart(tail=0):
+    def render_station_vehicle_count_chart(model: VECModel):
+        fig = Figure()
+        ax = fig.subplots()
 
-    data = model.datacollector.get_agent_vars_dataframe()['StationVehicleCount']
-    filtered_counts = data.loc[data.index.get_level_values('AgentID') >= 10000]
-    df = filtered_counts.unstack(level="AgentID")
+        data = model.datacollector.get_agent_vars_dataframe()['StationVehicleCount']
+        filtered_counts = data.loc[data.index.get_level_values('AgentID') >= 10000]
+        df = filtered_counts.unstack(level="AgentID")
+        if tail > 0:
+            df = df.tail(tail)
 
-    for station_id, color in VEC_STATION_COLORS.items():
-        assert station_id in df.columns
-        df[station_id].plot(ax=ax, color=color)
+        for station_id, color in VEC_STATION_COLORS.items():
+            assert station_id in df.columns
+            df[station_id].plot(ax=ax, color=color)
 
-    if hasattr(model, "max_capacity"):
-        # Draw horizontal line for max capacity
-        ax.axhline(y=model.max_capacity, color='gray', linestyle='--')
+        if hasattr(model, "max_capacity"):
+            # Draw horizontal line for max capacity
+            ax.axhline(y=model.max_capacity, color='gray', linestyle='--')
 
+        ax.set_title('Vehicle count at VEC stations')
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Vehicle count')
+        solara.FigureMatplotlib(fig)
 
-    ax.set_title('Vehicle count at VEC stations')
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Vehicle count')
-    solara.FigureMatplotlib(fig)
+    return render_station_vehicle_count_chart
