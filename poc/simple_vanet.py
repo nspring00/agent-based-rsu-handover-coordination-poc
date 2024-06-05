@@ -8,8 +8,8 @@ from mesa import Agent, Model
 from mesa.space import ContinuousSpace, FloatCoordinate
 from mesa.time import BaseScheduler
 
-import poc.VanetTraceLoader as vanetLoader
-import poc.simple as simple
+import VanetTraceLoader as vanetLoader
+import simple as simple
 
 # Constants for the simulation, adjusted for demonstration
 TIME_STEP_MS = 500  # Time step in milliseconds

@@ -2,7 +2,7 @@ import solara
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Circle
 
-from poc.simple import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
+from simple import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
 
 
 def agent_portrayal(agent):
