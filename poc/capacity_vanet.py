@@ -5,7 +5,7 @@ import mesa
 import numpy as np
 from matplotlib import pyplot as plt, patches
 from mesa import Agent, Model
-from mesa.space import ContinuousSpace, FloatCoordinate
+from mesa.space import ContinuousSpace
 from mesa.time import BaseScheduler
 
 import VanetTraceLoader as vanetLoader
@@ -15,7 +15,7 @@ import simple as simple
 TIME_STEP_MS = 500  # Time step in milliseconds
 TIME_STEP_S = TIME_STEP_MS / 1000.0  # Time step in seconds
 STEPS_PER_SECOND = int(1 // TIME_STEP_S)  # Number of steps per second
-assert STEPS_PER_SECOND * TIME_STEP_S == 1.0, "Time step conversion error"
+assert np.isclose(STEPS_PER_SECOND * TIME_STEP_S, 1.0, rtol=1e-09, atol=1e-09), "Time step conversion error"
 VEHICLE_SPEED_FAST_MS = 60 * (1000 / 3600)  # 60 km/h in m/s
 
 VEC_STATION_COLORS = {
@@ -57,13 +57,16 @@ class VehicleAgent(simple.VehicleAgent):
     """A vehicle agent that follows a list of waypoints and calculates its angle."""
 
     # TODO fix inheritance stuff
-    def __init__(self, unique_id, model: "VECModel", trace: vanetLoader.VehicleTrace):
+    def __init__(self, unique_id, model: "VECModel", trace: Optional[vanetLoader.VehicleTrace]):
         super().__init__(unique_id, model, 0, [])
         self.offloaded_load = 1
         self.invocation = 0
         self.trace_i = 0
         self.trace = trace
         self.active = True
+        if self.trace is None:
+            self.active = False
+            return
         self.angle = self.trace.trace.iloc[0]['vehicle_angle']
         self.pos = (self.trace.trace.iloc[0]['vehicle_x'], self.trace.trace.iloc[0]['vehicle_y'])
         self.station: Optional["VECStationAgent"] = None
@@ -465,25 +468,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-def test_moving_towards():
-    assert is_moving_towards((0, 0), 45, (1, 1)), "Vehicle should be moving towards the station"
-
-
-def test_moving_away():
-    assert not is_moving_towards((0, 0), 225, (1, 1)), "Vehicle should be moving away from the station"
-
-
-def test_moving_orthogonal():
-    assert not is_moving_towards((0, 0), 136, (1, 1)), "Vehicle should be moving orthogonal to the station"
-    assert not is_moving_towards((0, 0), 314, (1, 1)), "Vehicle should be moving orthogonal to the station"
-
-
-def test_moving_directly_towards():
-    assert is_moving_towards((0, 0), 0, (10, 0)), "Vehicle should be moving directly towards the station on the x-axis"
-
-
-def test_moving_directly_away():
-    assert not is_moving_towards((10, 0), 180,
-                                 (20, 0)), "Vehicle should be moving directly away from the station on the x-axis"

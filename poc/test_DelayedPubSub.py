@@ -1,6 +1,6 @@
 import unittest
 
-from poc.DelayedPubSub import DelayedPubSub
+from DelayedPubSub import DelayedPubSub
 
 
 class TestDelayedPubSub(unittest.TestCase):
