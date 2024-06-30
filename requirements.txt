@@ -2,3 +2,4 @@ numpy~=1.26.4
 pandas~=2.2.1
 matplotlib~=3.8.3
 mesa~=2.3.0
+imageio~=2.34.2

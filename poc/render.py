@@ -1,6 +1,8 @@
+import math
+
 import solara
 from matplotlib.figure import Figure
-from matplotlib.patches import Rectangle, Circle
+from matplotlib.patches import Rectangle, Circle, FancyArrow
 
 from simple import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
 
@@ -39,7 +41,7 @@ def render_model_with_bg(background):
     return lambda model: render_model(model, background)
 
 
-def render_model(model, background=None):
+def render_model(model: VECModel, background=None):
     fig = Figure()
     ax = fig.subplots()
 
@@ -79,6 +81,36 @@ def render_model(model, background=None):
 
     ax.set_xlim(0, model.width)
     ax.set_ylim(0, model.height)
+
+    solara.FigureMatplotlib(fig)
+
+
+def render_model_orientations(model: VECModel):
+    fig = Figure()
+    ax = fig.subplots()
+
+    for agent in model.agents:
+        if isinstance(agent, VehicleAgent):
+            if hasattr(agent, 'active') and not agent.active:
+                continue
+
+            arrow_length = 10
+            angle_rad = math.radians(agent.angle)
+
+            dx = arrow_length * math.cos(angle_rad)
+            dy = arrow_length * math.sin(angle_rad)
+
+            arrow = FancyArrow(agent.pos[0] - dx / 2, agent.pos[1] - dy / 2, dx, dy, head_width=5, head_length=6,
+                               facecolor=VEC_STATION_COLORS[agent.station.unique_id], linewidth=0)
+            ax.add_patch(arrow)
+
+        elif isinstance(agent, VECStationAgent):
+            color = VEC_STATION_COLORS[agent.unique_id]
+            ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
+
+    ax.set_xlim(0, model.width)
+    ax.set_ylim(0, model.height)
+    ax.set_aspect('equal')
 
     solara.FigureMatplotlib(fig)
 
