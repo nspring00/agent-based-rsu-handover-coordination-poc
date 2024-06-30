@@ -320,12 +320,11 @@ class VECModel(Model):
             self.agents_list.append(station)
 
         for i in range(4):
-            self.vec_stations[i].neighbors = [self.vec_stations[(i + 1) % 4], self.vec_stations[(i + 3) % 4]]
+            self.vec_stations[i].neighbors = [station for station in self.vec_stations
+                                              if distance(station.pos, self.vec_stations[i].pos) <= station.range +
+                                              self.vec_stations[i].range and station != self.vec_stations[i]]
 
         self.vehicle_id = 1
-
-        # for trace_id in TRACES.keys():
-        #     self.spawn_vehicle(trace_id)
 
         self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in TRACES.items()]
         self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
