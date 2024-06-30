@@ -7,8 +7,6 @@ import pandas as pd
 
 import matplotlib
 
-matplotlib.use('TkAgg')
-
 DATASET_PATH = '../datasets/vanet-trace-creteil-20130924-0700-0900/vanet-trace-creteil-20130924-0700-0900.csv'
 
 MIN_X = 1131
@@ -18,6 +16,8 @@ MAX_Y = 710
 
 
 def main():
+    matplotlib.use('TkAgg')
+
     df = pd.read_csv(DATASET_PATH, sep=';')
 
     df = df.dropna(subset=['vehicle_x', 'vehicle_y'])
