@@ -1,6 +1,8 @@
 import math
 import unittest
 
+from mesa import Model
+
 from capacity_vanet import is_moving_towards, VECModel, VECStationAgent, VehicleAgent
 
 
@@ -29,7 +31,12 @@ class TestIsMovingTowards(unittest.TestCase):
 
 class TestVECStationAgent(unittest.TestCase):
     def test_calculate_station_bearing(self):
-        model = VECModel(100, 100, 10)
+        class MockModel(Model):
+            def __init__(self):
+                super().__init__()
+
+        # noinspection PyTypeChecker
+        model: VECModel = MockModel()
         station = VECStationAgent(0, model, (10, 10), 10, 10)
 
         vehicle = VehicleAgent(0, model, None)
