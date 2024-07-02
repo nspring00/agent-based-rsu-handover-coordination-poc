@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
-from functools import lru_cache
 
 from data_test import MIN_X, MAX_X, MIN_Y, MAX_Y
 
@@ -49,7 +48,6 @@ def map_trace(df: pd.DataFrame) -> Dict[str, VehicleTrace]:
     return vehicle_traces
 
 
-@lru_cache(maxsize=1)
 def get_traces() -> Dict[str, VehicleTrace]:
     if not Path('trace.npy').exists():
         trace = map_trace(pd.read_csv(DATASET_PATH, sep=';'))
@@ -77,7 +75,6 @@ def map_grid(df):
     return grid
 
 
-@lru_cache(maxsize=1)
 def get_grid():
     if not Path('grid.npy').exists():
         grid = map_grid(pd.read_csv(DATASET_PATH, sep=';'))

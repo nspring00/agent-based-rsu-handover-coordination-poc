@@ -1,4 +1,5 @@
 import math
+from functools import lru_cache
 from typing import Optional, List
 
 import mesa
@@ -25,8 +26,15 @@ VEC_STATION_COLORS = {
     10004: "green",
 }
 
-GRID = vanetLoader.get_grid()
-TRACES = vanetLoader.get_traces()
+
+@lru_cache(maxsize=1)
+def get_grid():
+    return vanetLoader.get_grid()
+
+
+@lru_cache(maxsize=1)
+def get_traces():
+    return vanetLoader.get_traces()
 
 
 def distance(pos1, pos2):
@@ -329,7 +337,7 @@ class VECModel(Model):
 
         self.vehicle_id = 1
 
-        self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in TRACES.items()]
+        self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in get_traces().items()]
         self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
 
         # ONLY DEBUG
@@ -346,7 +354,7 @@ class VECModel(Model):
         self.datacollector.collect(self)
 
     def spawn_vehicle(self, trace_id, step):
-        vehicle = VehicleAgent(self.vehicle_id, self, TRACES[trace_id])
+        vehicle = VehicleAgent(self.vehicle_id, self, get_traces()[trace_id])
         vehicle.ts = step // TIME_STEP_S
 
         self.schedule.add(vehicle)
@@ -424,7 +432,7 @@ def main():
     fig, ax = plt.subplots()
 
     # Plot grid with cmap gray
-    ax.imshow(GRID, cmap='gray')
+    ax.imshow(get_grid(), cmap='gray')
 
     # road = patches.Polygon(model.waypoints, closed=True, fill=False, edgecolor='black', linewidth=2)
     # ax.add_patch(road)
