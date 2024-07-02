@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
+from functools import lru_cache
 
 from data_test import MIN_X, MAX_X, MIN_Y, MAX_Y
 
@@ -48,6 +49,7 @@ def map_trace(df: pd.DataFrame) -> Dict[str, VehicleTrace]:
     return vehicle_traces
 
 
+@lru_cache(maxsize=1)
 def get_traces() -> Dict[str, VehicleTrace]:
     if not Path('trace.npy').exists():
         trace = map_trace(pd.read_csv(DATASET_PATH, sep=';'))
@@ -56,8 +58,31 @@ def get_traces() -> Dict[str, VehicleTrace]:
     return np.load('trace.npy', allow_pickle=True).item()
 
 
+def map_grid(df):
+    df = df.dropna(subset=['vehicle_x', 'vehicle_y'])
+    df = df[(df['vehicle_x'] >= MIN_X) & (df['vehicle_x'] <= MAX_X) & (df['vehicle_y'] >= MIN_Y) & (
+            df['vehicle_y'] <= MAX_Y)]
+
+    # I want to find out where roads are. Use the vehicles' x and y coordinates to find out.
+    positions = df[['vehicle_x', 'vehicle_y']].values
+
+    grid = np.ones((MAX_Y - MIN_Y + 1, MAX_X - MIN_X + 1))
+
+    for x, y in positions:
+        # Skip if x or y is nan
+        if np.isnan(x) or np.isnan(y):
+            continue
+        grid[round(y) - MIN_Y, round(x) - MIN_X] = 0
+
+    return grid
+
+
+@lru_cache(maxsize=1)
 def get_grid():
-    # TODO add file generation code
+    if not Path('grid.npy').exists():
+        grid = map_grid(pd.read_csv(DATASET_PATH, sep=';'))
+        np.save('grid.npy', grid)
+        return grid
     return np.load('grid.npy')
 
 
