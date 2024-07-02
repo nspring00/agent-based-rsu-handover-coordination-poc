@@ -5,3 +5,8 @@
 # For licensing reasons
 datasets/*
 !datasets/.gitkeep
+
+# Runtime files
+*.png
+*.npy
+*-checkpoint.ipynb
