@@ -232,21 +232,19 @@ class VECStationAgent(simple.VECStationAgent):
 
         print(f"Neighbors with score for vehicle {vehicle.unique_id}:", neighbors_with_score)
 
-        neighbor, score = neighbors_with_score[0]
-
-        if score == 0 and not force:
+        if neighbors_with_score[0][1] == 0 and not force:
             print(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
             return False
 
-        # TODO for now just hand over to most suitable one
-        self.vehicles.remove(vehicle)
-        neighbor.vehicles.append(vehicle)
-        vehicle.station = neighbor
-        print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+        # Loop through sorted neighbors and handover to the first one that accepts
+        # TODO this probably doesnt work anymore once we introduce latency
+        for neighbor, score in neighbors_with_score:
+            if neighbor.request_handover(vehicle, force):
+                self.vehicles.remove(vehicle)
+                print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+                return True
 
-        return True
-
-        # TODO
+        return False
 
         # TODO dont do it so dumb
         # For now, take the best one without checking a response
@@ -272,6 +270,27 @@ class VECStationAgent(simple.VECStationAgent):
         #         return
         #
         # # TODO What to do if handover is unavoidable (e.g. capacity is full)?
+
+    def request_handover(self, vehicle: VehicleAgent, force=False) -> bool:
+        """
+        A station requests that a vehicle be handed over to a neighbor station.
+        The target station can accept or reject the request based on its own criteria.
+        """
+
+        # TODO for now handover can be forced
+        if not force:
+            # Check if the vehicle is 1. in range and 2. the RSU has enough capacity
+            if distance(self.pos, vehicle.pos) > self.range:
+                return False
+            if self.load + vehicle.offloaded_load >= self.capacity:
+                return False
+
+            # TODO: Implement more sophisticated check
+
+        self.vehicles.append(vehicle)
+        vehicle.station = self
+
+        return True
 
     def is_vehicle_exiting(self, vehicle: VehicleAgent):
         # Predict if the vehicle will exit the station's range soon
