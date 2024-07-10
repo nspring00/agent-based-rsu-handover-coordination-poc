@@ -469,13 +469,13 @@ def main():
     # Run the simulation for 200 steps to observe the vehicle's movement and rotation
     for i in range(1000):
         model.step()
-        vehicle: VehicleAgent = model.vehicle
-        if i % 2 == 0 and vehicle and vehicle.active:  # Collect position and angle for every 20 steps
-            output.append(f"Step {i}: Vehicle Position: {vehicle.pos}, Angle: {vehicle.angle:.2f}")
-            vehicle_positions.append(vehicle.pos)
-            vehicle_angles.append(vehicle.angle)
-
-    print(*output, sep='\n')
+    #     vehicle: VehicleAgent = model.vehicle
+    #     if i % 2 == 0 and vehicle and vehicle.active:  # Collect position and angle for every 20 steps
+    #         output.append(f"Step {i}: Vehicle Position: {vehicle.pos}, Angle: {vehicle.angle:.2f}")
+    #         vehicle_positions.append(vehicle.pos)
+    #         vehicle_angles.append(vehicle.angle)
+    #
+    # print(*output, sep='\n')
 
     # Visualize the recorded vehicle positions and directions
     fig, ax = plt.subplots()
@@ -501,17 +501,17 @@ def main():
         ax.add_artist(circle)
 
     # Draw vehicles
-    vehicle_length = 2  # Length of the vehicle arrow
+    # vehicle_length = 2  # Length of the vehicle arrow
 
-    print("Vehicle positions")
+    # print("Vehicle positions")
 
-    for position, angle in zip(vehicle_positions, vehicle_angles):
-        x, y = position
-        dx = vehicle_length * np.cos(np.radians(angle))
-        dy = vehicle_length * np.sin(np.radians(angle))
-        ax.arrow(x, y, dx, dy, head_width=2, head_length=1, fc='blue', ec='blue', linewidth=2)
-
-        print((angle + 360) % 360)
+    # for position, angle in zip(vehicle_positions, vehicle_angles):
+    #     x, y = position
+    #     dx = vehicle_length * np.cos(np.radians(angle))
+    #     dy = vehicle_length * np.sin(np.radians(angle))
+    #     ax.arrow(x, y, dx, dy, head_width=2, head_length=1, fc='blue', ec='blue', linewidth=2)
+    #
+    #     print((angle + 360) % 360)
 
     ax.set_xlim(0, road_width)
     ax.set_ylim(0, road_height)
