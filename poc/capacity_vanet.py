@@ -346,7 +346,9 @@ class VECModel(Model):
                 "SuccessfulHandoverCount": "report_successful_handovers",
                 "TotalSuccessfulHandoverCount": "report_total_successful_handovers",
                 "FailedHandoverCount": "report_failed_handovers",
-                "TotalFailedHandoverCount": "report_total_failed_handovers"
+                "TotalFailedHandoverCount": "report_total_failed_handovers",
+                "AvgQoS": VECModel.report_avg_qos,
+                "MinQoS": VECModel.report_min_qos,
             },
             agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": vehicle_count_collector}
         )
@@ -449,6 +451,35 @@ class VECModel(Model):
         self.report_failed_handovers = 0
 
         self.step_count += 1
+
+    def report_avg_qos(self):
+        qos = compute_qos(self)
+        if len(qos) == 0:
+            return 1
+        return sum(qos) / len(qos)
+
+    def report_min_qos(self):
+        qos = compute_qos(self)
+        return min(qos, default=1)
+
+
+def compute_qos(model: VECModel) -> List[float]:
+    """
+    Compute QoS as the load of the station divided by its capacity if the vehicle is within range, otherwise 0.
+    """
+
+    qos_list = []
+    for agent in model.agents:
+        if not isinstance(agent, VehicleAgent):
+            continue
+
+        # TODO QoS is not automatically 0 when out of range but should decrease
+        # TODO calculation is wrong
+        qos = agent.station.load / agent.station.capacity \
+            if distance(agent.pos, agent.station.pos) <= agent.station.range else 0
+        qos_list.append(qos)
+
+    return qos_list
 
 
 def main():
