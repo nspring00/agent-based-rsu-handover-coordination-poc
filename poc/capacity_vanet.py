@@ -468,15 +468,27 @@ def compute_qos(model: VECModel) -> List[float]:
     Compute QoS as the load of the station divided by its capacity if the vehicle is within range, otherwise 0.
     """
 
+    def qos_internal(agent: VehicleAgent):
+        distance_factor = 1
+        dist = distance(agent.pos, agent.station.pos)
+        # TODO check (Simplification) Distance related QoS decreases linearly
+        if agent.station.range < dist <= 2 * agent.station.range:
+            distance_factor = 1 - (dist - agent.station.range) / agent.station.range
+        elif dist > 2 * agent.station.range:
+            distance_factor = 0
+
+        load_factor = 1
+        if agent.station.load > agent.station.capacity:
+            load_factor = agent.station.capacity / agent.station.load
+
+        return load_factor * distance_factor
+
     qos_list = []
     for agent in model.agents:
         if not isinstance(agent, VehicleAgent):
             continue
 
-        # TODO QoS is not automatically 0 when out of range but should decrease
-        # TODO calculation is wrong
-        qos = agent.station.load / agent.station.capacity \
-            if distance(agent.pos, agent.station.pos) <= agent.station.range else 0
+        qos = qos_internal(agent)
         qos_list.append(qos)
 
     return qos_list
