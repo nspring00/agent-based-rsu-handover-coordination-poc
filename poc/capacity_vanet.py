@@ -135,7 +135,7 @@ def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: Vehicl
 
 def calculate_station_suitability_with_vehicle(station: "VECStationAgent", vehicle: VehicleAgent,
                                                current_station: "VECStationAgent"):
-    if station.load > station.capacity:
+    if station.load + vehicle.offloaded_load > station.capacity:
         return 0
 
     capacity_suitability = (station.capacity - station.load - vehicle.offloaded_load) / station.capacity
@@ -150,7 +150,7 @@ class VECStationAgent(simple.VECStationAgent):
     """A VEC station agent with a communication range."""
 
     # TODO fix inheritance stuff
-    def __init__(self, unique_id, model, position, range_m, capacity, neighbors=None):
+    def __init__(self, unique_id, model: "VECModel", position, range_m, capacity, neighbors=None):
         super().__init__(unique_id, model, 0, 0, 0)
         self.pos = position
         self.range = range_m
@@ -173,7 +173,7 @@ class VECStationAgent(simple.VECStationAgent):
         # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
         for vehicle in list(self.vehicles):
             # Check if vehicle is exiting the station's range soon
-            if calculate_trajectory_suitability(self, vehicle) < 0.8:
+            if calculate_trajectory_suitability(self, vehicle) < 0.9:
                 continue
 
             print(f"Vehicle {vehicle.unique_id} is leaving the station {self.unique_id} range")
@@ -239,10 +239,25 @@ class VECStationAgent(simple.VECStationAgent):
         # Loop through sorted neighbors and handover to the first one that accepts
         # TODO this probably doesnt work anymore once we introduce latency
         for neighbor, score in neighbors_with_score:
-            if neighbor.request_handover(vehicle, force):
+            success = neighbor.request_handover(vehicle, force)
+            if success:
                 self.vehicles.remove(vehicle)
                 print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+
+                # Stats
+                # noinspection PyTypeChecker
+                model: VECModel = self.model
+                model.report_successful_handovers += 1
+                model.report_total_successful_handovers += 1
+
                 return True
+
+            else:
+                # Stats
+                # noinspection PyTypeChecker
+                model: VECModel = self.model
+                model.report_failed_handovers += 1
+                model.report_total_failed_handovers += 1
 
         return False
 
@@ -282,7 +297,7 @@ class VECStationAgent(simple.VECStationAgent):
             # Check if the vehicle is 1. in range and 2. the RSU has enough capacity
             if distance(self.pos, vehicle.pos) > self.range:
                 return False
-            if self.load + vehicle.offloaded_load >= self.capacity:
+            if self.load + vehicle.offloaded_load > self.capacity:
                 return False
 
             # TODO: Implement more sophisticated check
@@ -316,12 +331,23 @@ class VECModel(Model):
         self.space = ContinuousSpace(width, height, False)  # Non-toroidal space
         self.schedule = BaseScheduler(self)
 
+        self.report_successful_handovers = 0
+        self.report_failed_handovers = 0
+        self.report_total_successful_handovers = 0
+        self.report_total_failed_handovers = 0
+
         def vehicle_count_collector(a: Agent):
             if isinstance(a, VECStationAgent):
                 return len(a.vehicles)
             return None
 
         self.datacollector = mesa.DataCollector(
+            model_reporters={
+                "SuccessfulHandoverCount": "report_successful_handovers",
+                "TotalSuccessfulHandoverCount": "report_total_successful_handovers",
+                "FailedHandoverCount": "report_failed_handovers",
+                "TotalFailedHandoverCount": "report_total_failed_handovers"
+            },
             agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": vehicle_count_collector}
         )
 
@@ -417,6 +443,10 @@ class VECModel(Model):
 
         self.schedule.step()
         self.datacollector.collect(self)
+
+        # Reset per-step statistics
+        self.report_successful_handovers = 0
+        self.report_failed_handovers = 0
 
         self.step_count += 1
 

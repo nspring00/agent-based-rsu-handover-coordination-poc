@@ -107,6 +107,8 @@ def render_model_orientations(model: VECModel):
         elif isinstance(agent, VECStationAgent):
             color = VEC_STATION_COLORS[agent.unique_id]
             ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
+            range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
+            ax.add_patch(range_circle)
 
     ax.set_xlim(0, model.width)
     ax.set_ylim(0, model.height)
