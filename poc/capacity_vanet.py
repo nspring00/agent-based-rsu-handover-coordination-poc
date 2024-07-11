@@ -397,7 +397,6 @@ class VECModel(Model):
         self.vehicle = None
 
         self.step_second = 0
-        self.step_count = 0
 
         self.datacollector.collect(self)
 
@@ -420,38 +419,36 @@ class VECModel(Model):
         return vehicle
 
     def step(self):
+
+        while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_second:
+            v = self.to_remove.pop()
+            v.station.vehicles.remove(v)
+            self.agents_list.remove(v)
+            self.schedule.remove(v)
+            v.remove()
+
+        assert len(self.to_remove) == len(self.agents) - 4, "Agent count mismatch"  # 4 is number of stations
+        self.step_second += 1
+
+        while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_second:
+            v_trace = self.unplaced_vehicles.pop()
+            v = self.spawn_vehicle(v_trace.id, self.step_second)
+
+            # Insert while sorting on last_ts
+            self.to_remove.append(v)
+            self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
+
         for _ in range(STEPS_PER_SECOND):
-            self.step_internal()
+            self.schedule.step()
 
-    def step_internal(self):
-
-        if self.step_count % STEPS_PER_SECOND == 0:
-            while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_second:
-                v = self.to_remove.pop()
-                v.station.vehicles.remove(v)
-                self.agents_list.remove(v)
-                self.schedule.remove(v)
-                v.remove()
-
-            assert len(self.to_remove) == len(self.agents) - 4, "Agent count mismatch"  # 4 is number of stations
-            self.step_second += 1
-
-            while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_second:
-                v_trace = self.unplaced_vehicles.pop()
-                v = self.spawn_vehicle(v_trace.id, self.step_second)
-
-                # Insert while sorting on last_ts
-                self.to_remove.append(v)
-                self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
-
-        self.schedule.step()
         self.datacollector.collect(self)
 
         # Reset per-step statistics
         self.report_successful_handovers = 0
         self.report_failed_handovers = 0
 
-        self.step_count += 1
+    def update_shared_load_info(self):
+        self.shared_load_info = {station.unique_id: station.load for station in self.vec_stations}
 
     def report_avg_qos(self):
         qos = compute_qos(self)
