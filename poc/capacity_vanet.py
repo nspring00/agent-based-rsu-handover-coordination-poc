@@ -1,3 +1,4 @@
+import logging
 import math
 from functools import lru_cache
 from typing import Optional, List
@@ -167,12 +168,12 @@ class VECStationAgent(simple.VECStationAgent):
             if calculate_trajectory_suitability(self, vehicle) < 0.9:
                 continue
 
-            print(f"Vehicle {vehicle.unique_id} is leaving the station {self.unique_id} range")
+            logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {self.unique_id} range")
             success = self.attempt_handover(vehicle)
 
             if not success and calculate_trajectory_suitability(self, vehicle) > 0.95:
                 # Force handover
-                print(f"Vehicle {vehicle.unique_id} is being forced to leave the station {self.unique_id}")
+                logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {self.unique_id}")
                 self.attempt_handover(vehicle, force=True)
 
         # TODO move to global
@@ -187,7 +188,7 @@ class VECStationAgent(simple.VECStationAgent):
             if self.load < self.load_threshold * self.capacity:
                 return
 
-            print(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
+            logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
 
             self.attempt_handover(vehicle, force=self.load > 0.95 * self.capacity)
 
@@ -219,13 +220,13 @@ class VECStationAgent(simple.VECStationAgent):
 
         if len(neighbors_with_score) == 0:
             if force:
-                print(f"Vehicle {vehicle.unique_id} is leaving coverage area!!")
+                logging.warning(f"Vehicle {vehicle.unique_id} is leaving coverage area!!")
             return False
 
-        print(f"Neighbors with score for vehicle {vehicle.unique_id}:", neighbors_with_score)
+        logging.debug(f"Neighbors with score for vehicle {vehicle.unique_id}:", neighbors_with_score)
 
         if neighbors_with_score[0][1] == 0 and not force:
-            print(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
+            logging.warning(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
             return False
 
         # Loop through sorted neighbors and handover to the first one that accepts
@@ -234,7 +235,7 @@ class VECStationAgent(simple.VECStationAgent):
             success = neighbor.request_handover(vehicle, force)
             if success:
                 self.vehicles.remove(vehicle)
-                print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+                logging.info(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
 
                 # Stats
                 # noinspection PyTypeChecker
@@ -610,7 +611,9 @@ def compare_load_sharing():
     model5 = VECModel(road_width, road_height, -1, 30, 5)
     model10 = VECModel(road_width, road_height, -1, 30, 10)
 
-    for _ in range(1000):
+    for i in range(1000):
+        if (i + 1) % 100 == 0:
+            print(i + 1)
         model1.step()
         model5.step()
         model10.step()
@@ -621,5 +624,7 @@ def compare_load_sharing():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.ERROR)
+
     # main()
     compare_load_sharing()
