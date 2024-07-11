@@ -448,7 +448,8 @@ class VECModel(Model):
 
         self.datacollector.collect(self)
 
-        self.update_shared_load_info()
+        if self.step_second % self.load_update_interval == 0:
+            self.update_shared_load_info()
 
         # Reset per-step statistics
         self.report_successful_handovers = 0
