@@ -133,14 +133,14 @@ def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: Vehicl
     return ho_metric
 
 
-def calculate_station_suitability_with_vehicle(station: "VECStationAgent", vehicle: VehicleAgent,
+def calculate_station_suitability_with_vehicle(station: "VECStationAgent", station_load: float, vehicle: VehicleAgent,
                                                current_station: "VECStationAgent"):
-    if station.load + vehicle.offloaded_load > station.capacity:
+    if station_load + vehicle.offloaded_load > station.capacity:
         return 0
 
-    capacity_suitability = (station.capacity - station.load - vehicle.offloaded_load) / station.capacity
+    capacity_suitability = (station.capacity - station_load - vehicle.offloaded_load) / station.capacity
     relative_capacity_suitability = max(10, (current_station.load / current_station.capacity) / (
-            station.load / station.capacity)) if station.load > 0 else 10
+            station_load / station.capacity)) if station_load > 0 else 10
     trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
 
     return 0.5 * capacity_suitability + 0.5 * trajectory_suitability + 0.3 * relative_capacity_suitability
@@ -164,6 +164,11 @@ class VECStationAgent(simple.VECStationAgent):
     @property
     def load(self):
         return len(self.vehicles)
+
+    def get_neighbor_load(self, neighbor_id):
+        # noinspection PyTypeChecker
+        model: VECModel = self.model
+        return model.shared_load_info[neighbor_id]
 
     def step(self):
 
@@ -220,9 +225,10 @@ class VECStationAgent(simple.VECStationAgent):
 
     def attempt_handover(self, vehicle: VehicleAgent, force=False) -> bool:
 
-        neighbors_with_score = [(x, calculate_station_suitability_with_vehicle(x, vehicle, self))
-                                for x in self.neighbors if
-                                distance(x.pos, vehicle.pos) < x.range]
+        neighbors_with_score = [
+            (x, calculate_station_suitability_with_vehicle(x, self.get_neighbor_load(x.unique_id), vehicle, self))
+            for x in self.neighbors if
+            distance(x.pos, vehicle.pos) < x.range]
         neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
 
         if len(neighbors_with_score) == 0:
@@ -322,19 +328,23 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, width, height, speed, max_capacity=30):
+    def __init__(self, width, height, speed, max_capacity=30, load_update_interval=1):
         super().__init__(speed)
         self.width = width
         self.height = height
         self.max_capacity = max_capacity
+        self.load_update_interval = load_update_interval
 
         self.space = ContinuousSpace(width, height, False)  # Non-toroidal space
+        # TODO use seeded random scheduler
         self.schedule = BaseScheduler(self)
 
         self.report_successful_handovers = 0
         self.report_failed_handovers = 0
         self.report_total_successful_handovers = 0
         self.report_total_failed_handovers = 0
+
+        self.shared_load_info = {}
 
         def vehicle_count_collector(a: Agent):
             if isinstance(a, VECStationAgent):
@@ -371,6 +381,13 @@ class VECModel(Model):
             (110, 140),
             (140, 60)
         ]
+        # TODO check station positions
+        # station_positions = [
+        #     (75, 55),  # red
+        #     (50, 115),  # blue
+        #     (115, 145),  # yellow
+        #     (165, 50)  # green
+        # ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
             station = VECStationAgent(10000 + i, self, pos, 60, max_capacity)
@@ -442,6 +459,8 @@ class VECModel(Model):
             self.schedule.step()
 
         self.datacollector.collect(self)
+
+        self.update_shared_load_info()
 
         # Reset per-step statistics
         self.report_successful_handovers = 0
@@ -580,5 +599,41 @@ def main():
     plt.show()
 
 
+def print_model_metrics(model, model_name):
+    """
+    Prints the evaluation metrics for a given model.
+
+    Parameters:
+    - model: The model object to extract metrics from.
+    - model_name: A string representing the name or identifier of the model.
+    """
+    start_index = 100
+    df = model.datacollector.get_model_vars_dataframe()
+    print(f"{model_name} Success: {df['TotalSuccessfulHandoverCount'].iloc[-1]}")
+    print(f"{model_name} Failed: {df['TotalFailedHandoverCount'].iloc[-1]}")
+    print(f"{model_name} QoS: {df['AvgQoS'][start_index:].mean()}")
+    print(f"{model_name} QoSMin: {df['MinQoS'][start_index:].mean()}")
+    print(f"{model_name} Gini: {df['GiniLoad'][start_index:].mean()}")
+
+
+def compare_load_sharing():
+    road_width = 200  # meters
+    road_height = 200  # meters
+
+    model1 = VECModel(road_width, road_height, -1, 30, 1)
+    model5 = VECModel(road_width, road_height, -1, 30, 5)
+    model10 = VECModel(road_width, road_height, -1, 30, 10)
+
+    for _ in range(1000):
+        model1.step()
+        model5.step()
+        model10.step()
+
+    print_model_metrics(model1, "ShareLoadFreq1")
+    print_model_metrics(model5, "ShareLoadFreq5")
+    print_model_metrics(model10, "ShareLoadFreq10")
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    compare_load_sharing()
