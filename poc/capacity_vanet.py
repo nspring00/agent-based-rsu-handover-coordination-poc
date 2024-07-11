@@ -1,5 +1,6 @@
 import logging
 import math
+import time
 from functools import lru_cache
 from typing import Optional, List
 
@@ -8,10 +9,12 @@ import numpy as np
 from matplotlib import pyplot as plt, patches
 from mesa import Agent, Model
 from mesa.space import ContinuousSpace
-from mesa.time import BaseScheduler
+from mesa.time import RandomActivationByType
 
 import VanetTraceLoader as vanetLoader
 import simple as simple
+
+SEED = 42
 
 # Constants for the simulation, adjusted for demonstration
 TIME_STEP_MS = 500  # Time step in milliseconds
@@ -315,16 +318,16 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, width, height, speed, max_capacity=30, load_update_interval=1):
-        super().__init__(speed)
+    def __init__(self, width, height, speed, max_capacity=30, load_update_interval=1, **kwargs):
+        # Seed is set via super().new()
+        super().__init__()
         self.width = width
         self.height = height
         self.max_capacity = max_capacity
         self.load_update_interval = load_update_interval
 
         self.space = ContinuousSpace(width, height, False)  # Non-toroidal space
-        # TODO use seeded random scheduler
-        self.schedule = BaseScheduler(self)
+        self.schedule = RandomActivationByType(self)
 
         self.report_successful_handovers = 0
         self.report_failed_handovers = 0
@@ -353,8 +356,6 @@ class VECModel(Model):
 
         self.running = True
 
-        self.agents_list = []
-
         # Define waypoints at the corners of the rectangular road layout
         waypoints_pos_offset = 5
         waypoints = [(waypoints_pos_offset, waypoints_pos_offset), (width - waypoints_pos_offset, waypoints_pos_offset),
@@ -380,7 +381,6 @@ class VECModel(Model):
             station = VECStationAgent(10000 + i, self, pos, 60, max_capacity)
             self.vec_stations.append(station)
             self.schedule.add(station)
-            self.agents_list.append(station)
 
         for i in range(4):
             self.vec_stations[i].neighbors = [station for station in self.vec_stations
@@ -409,7 +409,6 @@ class VECModel(Model):
         vehicle.ts = step // TIME_STEP_S
 
         self.schedule.add(vehicle)
-        self.agents_list.append(vehicle)
 
         self.vehicle_id += 1
 
@@ -427,7 +426,6 @@ class VECModel(Model):
         while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_second:
             v = self.to_remove.pop()
             v.station.vehicles.remove(v)
-            self.agents_list.remove(v)
             self.schedule.remove(v)
             v.remove()
 
@@ -442,8 +440,11 @@ class VECModel(Model):
             self.to_remove.append(v)
             self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
 
+        # TODO simplify??
         for _ in range(STEPS_PER_SECOND):
-            self.schedule.step()
+            if VehicleAgent in self.schedule._agents_by_type:
+                self.schedule.step_type(VehicleAgent, shuffle_agents=True)
+            self.schedule.step_type(VECStationAgent, shuffle_agents=True)
 
         self.datacollector.collect(self)
 
@@ -604,12 +605,14 @@ def print_model_metrics(model, model_name):
 
 
 def compare_load_sharing():
+    start = time.time()
+
     road_width = 200  # meters
     road_height = 200  # meters
 
-    model1 = VECModel(road_width, road_height, -1, 30, 1)
-    model5 = VECModel(road_width, road_height, -1, 30, 5)
-    model10 = VECModel(road_width, road_height, -1, 30, 10)
+    model1 = VECModel(road_width, road_height, -1, 30, 1, seed=SEED)
+    model5 = VECModel(road_width, road_height, -1, 30, 5, seed=SEED)
+    model10 = VECModel(road_width, road_height, -1, 30, 10, seed=SEED)
 
     for i in range(1000):
         if (i + 1) % 100 == 0:
@@ -617,6 +620,8 @@ def compare_load_sharing():
         model1.step()
         model5.step()
         model10.step()
+
+    print("Time elapsed:", int(time.time() - start), "s")
 
     print_model_metrics(model1, "ShareLoadFreq1")
     print_model_metrics(model5, "ShareLoadFreq5")
