@@ -71,35 +71,21 @@ class VehicleAgent(simple.VehicleAgent):
         self.invocation = 0
         self.trace_i = 0
         self.trace = trace
+        self.trace_iterator = iter(self.trace.trace.iterrows())
+        self.station: Optional["VECStationAgent"] = None
+
         self.active = True
         if self.trace is None:
             self.active = False
             return
-        self.angle = self.trace.trace.iloc[0]['vehicle_angle']
-        self.pos = (self.trace.trace.iloc[0]['vehicle_x'], self.trace.trace.iloc[0]['vehicle_y'])
-        self.station: Optional["VECStationAgent"] = None
 
-        # if trace.first_ts == 0:
-        #     self.do_step()
+        # Necessary for determining initial station
+        first_trace = self.trace.trace.iloc[0]
+        self.angle = first_trace['vehicle_angle']
+        self.pos = (first_trace['vehicle_x'], first_trace['vehicle_y'])
 
     def do_step(self):
-        # self.active = True
-        # state = self.trace.trace.iloc[self.trace_i]
-        # if state['timestep_time'] != ts and state['timestep_time'] != ts - 1:
-        #     raise ValueError("Time step mismatch")
-        #
-        # if state['timestep_time'] == ts:
-        #     return
-        #
-        # self.trace_i += 1
-        # state = self.trace.trace.iloc[self.trace_i]
-        #
-        # if state['timestep_time'] > ts:
-        #     raise ValueError("Time step jumped to the future")
-        # if state['timestep_time'] < ts:
-        #     raise ValueError("Time step still in the past")
-
-        state = self.trace.trace.iloc[self.trace_i]
+        _, state = next(self.trace_iterator)
         assert state['timestep_time'] == self.trace_i + self.trace.first_ts, "Time step mismatch"
         self.trace_i += 1
 
