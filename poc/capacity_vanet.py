@@ -349,6 +349,7 @@ class VECModel(Model):
                 "TotalFailedHandoverCount": "report_total_failed_handovers",
                 "AvgQoS": VECModel.report_avg_qos,
                 "MinQoS": VECModel.report_min_qos,
+                "GiniLoad": VECModel.report_gini_load,
             },
             agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": vehicle_count_collector}
         )
@@ -461,6 +462,22 @@ class VECModel(Model):
     def report_min_qos(self):
         qos = compute_qos(self)
         return min(qos, default=1)
+
+    def report_gini_load(self):
+        loads = [station.load for station in self.vec_stations]
+        return compute_gini(loads)
+
+
+def compute_gini(array):
+    """Compute Gini coefficient of an array."""
+    array = np.array(array, dtype=np.float64)
+    if np.amin(array) < 0:
+        array -= np.amin(array)  # Values cannot be negative
+    array += 0.0000001  # Values cannot be 0
+    array = np.sort(array)  # Sort smallest to largest
+    index = np.arange(1, array.shape[0] + 1)  # Index per array element
+    n = array.shape[0]
+    return (np.sum((2 * index - n - 1) * array)) / (n * np.sum(array))
 
 
 def compute_qos(model: VECModel) -> List[float]:
