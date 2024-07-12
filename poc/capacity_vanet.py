@@ -9,10 +9,10 @@ import numpy as np
 from matplotlib import pyplot as plt, patches
 from mesa import Agent, Model
 from mesa.space import ContinuousSpace
-from mesa.time import RandomActivationByType
 
 import VanetTraceLoader as vanetLoader
 import simple as simple
+from scheduler import RandomActivationBySortedType
 
 SEED = 42
 
@@ -318,16 +318,19 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, width, height, speed, max_capacity=30, load_update_interval=1, **kwargs):
+    def __init__(self, max_capacity=30, load_update_interval=1, **kwargs):
         # Seed is set via super().new()
         super().__init__()
-        self.width = width
-        self.height = height
+        self.running = True
         self.max_capacity = max_capacity
         self.load_update_interval = load_update_interval
+        self.traces = get_traces()
+        self.width, self.height = vanetLoader.get_size()
+        assert self.width == 200
+        assert self.height == 200
 
-        self.space = ContinuousSpace(width, height, False)  # Non-toroidal space
-        self.schedule = RandomActivationByType(self)
+        self.space = ContinuousSpace(self.width, self.height, False)  # Non-toroidal space
+        self.schedule = RandomActivationBySortedType(self, [VehicleAgent, VECStationAgent])
 
         self.report_successful_handovers = 0
         self.report_failed_handovers = 0
@@ -389,7 +392,7 @@ class VECModel(Model):
 
         self.vehicle_id = 1
 
-        self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in get_traces().items()]
+        self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in self.traces.items()]
         self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
 
         # ONLY DEBUG
@@ -405,7 +408,7 @@ class VECModel(Model):
         self.datacollector.collect(self)
 
     def spawn_vehicle(self, trace_id, step):
-        vehicle = VehicleAgent(self.vehicle_id, self, get_traces()[trace_id])
+        vehicle = VehicleAgent(self.vehicle_id, self, self.traces[trace_id])
         vehicle.ts = step // TIME_STEP_S
 
         self.schedule.add(vehicle)
@@ -442,9 +445,7 @@ class VECModel(Model):
 
         # TODO simplify??
         for _ in range(STEPS_PER_SECOND):
-            if VehicleAgent in self.schedule._agents_by_type:
-                self.schedule.step_type(VehicleAgent, shuffle_agents=True)
-            self.schedule.step_type(VECStationAgent, shuffle_agents=True)
+            self.schedule.step()
 
         self.datacollector.collect(self)
 

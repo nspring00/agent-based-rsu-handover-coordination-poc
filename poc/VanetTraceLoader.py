@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple
 
 from data_test import MIN_X, MAX_X, MIN_Y, MAX_Y
 
@@ -46,6 +46,10 @@ def map_trace(df: pd.DataFrame) -> Dict[str, VehicleTrace]:
                                                   trace)
 
     return vehicle_traces
+
+
+def get_size() -> Tuple[int, int]:
+    return MAX_X - MIN_X + 1, MAX_Y - MIN_Y + 1
 
 
 def get_traces() -> Dict[str, VehicleTrace]:
