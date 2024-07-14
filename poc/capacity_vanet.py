@@ -357,31 +357,22 @@ class VECModel(Model):
             agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": vehicle_count_collector}
         )
 
-        self.running = True
-
-        # Define waypoints at the corners of the rectangular road layout
-        waypoints_pos_offset = 5
-        waypoints = [(waypoints_pos_offset, waypoints_pos_offset), (width - waypoints_pos_offset, waypoints_pos_offset),
-                     (width - waypoints_pos_offset, height - waypoints_pos_offset),
-                     (waypoints_pos_offset, height - waypoints_pos_offset)]
-        self.waypoints = waypoints
-
-        station_positions = [
-            (75, 50),
-            (50, 115),
-            (110, 140),
-            (140, 60)
-        ]
-        # TODO check station positions
         # station_positions = [
-        #     (75, 55),  # red
-        #     (50, 115),  # blue
-        #     (115, 145),  # yellow
-        #     (165, 50)  # green
+        #     (75, 50),
+        #     (50, 115),
+        #     (110, 140),
+        #     (140, 60)
         # ]
+        # TODO check station positions
+        station_positions = [
+            (75, 45),  # red
+            (40, 120),  # blue
+            (120, 155),  # yellow
+            (160, 50)  # green
+        ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, pos, 60, max_capacity)
+            station = VECStationAgent(10000 + i, self, pos, 65, max_capacity)
             self.vec_stations.append(station)
             self.schedule.add(station)
 
