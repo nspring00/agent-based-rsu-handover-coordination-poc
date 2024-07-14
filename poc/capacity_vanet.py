@@ -600,12 +600,9 @@ def print_model_metrics(model, model_name):
 def compare_load_sharing():
     start = time.time()
 
-    road_width = 200  # meters
-    road_height = 200  # meters
-
-    model1 = VECModel(road_width, road_height, -1, 30, 1, seed=SEED)
-    model5 = VECModel(road_width, road_height, -1, 30, 5, seed=SEED)
-    model10 = VECModel(road_width, road_height, -1, 30, 10, seed=SEED)
+    model1 = VECModel(25, 1, seed=SEED)
+    model5 = VECModel(25, 5, seed=SEED)
+    model10 = VECModel(25, 10, seed=SEED)
 
     for i in range(1000):
         if (i + 1) % 100 == 0:
@@ -613,6 +610,14 @@ def compare_load_sharing():
         model1.step()
         model5.step()
         model10.step()
+
+    # params = {
+    #     "load_update_interval": [1, 5, 10],
+    #     "max_capacity": 25,
+    #     "seed": SEED
+    # }
+    #
+    # results = mesa.batch_run(VECModel, params, max_steps=1000, number_processes=None)
 
     print("Time elapsed:", int(time.time() - start), "s")
 
