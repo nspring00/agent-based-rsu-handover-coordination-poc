@@ -75,7 +75,6 @@ class VehicleAgent(simple.VehicleAgent):
         self.invocation = 0
         self.trace_i = 0
         self.trace = trace
-        self.trace_iterator = iter(self.trace.trace.iterrows())
         self.station: Optional["VECStationAgent"] = None
 
         self.active = True
@@ -84,6 +83,7 @@ class VehicleAgent(simple.VehicleAgent):
             return
 
         # Necessary for determining initial station
+        self.trace_iterator = iter(self.trace.trace.iterrows())
         first_trace = self.trace.trace.iloc[0]
         self.angle = first_trace['vehicle_angle']
         self.pos = (first_trace['vehicle_x'], first_trace['vehicle_y'])
