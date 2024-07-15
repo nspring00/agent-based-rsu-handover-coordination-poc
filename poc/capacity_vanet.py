@@ -498,10 +498,7 @@ def compute_qos(model: VECModel) -> List[float]:
         return load_factor * distance_factor
 
     qos_list = []
-    for agent in model.agents:
-        if not isinstance(agent, VehicleAgent):
-            continue
-
+    for agent in model.schedule._agents_by_type.get(VehicleAgent, []):
         qos = qos_internal(agent)
         qos_list.append(qos)
 
@@ -619,8 +616,13 @@ def compare_load_sharing():
     #
     # results = mesa.batch_run(VECModel, params, max_steps=1000, number_processes=None)
 
+    assert model1.report_total_successful_handovers == 2959
+    assert model5.report_total_successful_handovers == 2905
+    assert model10.report_total_successful_handovers == 2751
+
     print("Time elapsed:", int(time.time() - start), "s")
 
+    # "Regression test"
     print_model_metrics(model1, "ShareLoadFreq1")
     print_model_metrics(model5, "ShareLoadFreq5")
     print_model_metrics(model10, "ShareLoadFreq10")
