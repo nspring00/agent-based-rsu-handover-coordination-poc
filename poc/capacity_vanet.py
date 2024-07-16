@@ -318,7 +318,7 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, max_capacity=30, load_update_interval=1, **kwargs):
+    def __init__(self, max_capacity=30, load_update_interval=1, start_at=0, **kwargs):
         # Seed is set via super().new()
         super().__init__()
         self.running = True
@@ -397,6 +397,9 @@ class VECModel(Model):
         self.step_second = 0
 
         self.datacollector.collect(self)
+
+        for _ in range(start_at):
+            self.step()
 
     def spawn_vehicle(self, trace_id, step):
         vehicle = VehicleAgent(self.vehicle_id, self, self.traces[trace_id])
