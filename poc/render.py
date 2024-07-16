@@ -62,22 +62,22 @@ def render_model(model: VECModel, background=None):
         ax.imshow(background, cmap='gray')
 
     # Draw all agents
-    for agent in model.schedule._agents_by_type.get(VehicleAgent, []):
-        if not agent.active:
-            continue
+    for agent in model.agents:
+        if isinstance(agent, VehicleAgent):
+            if hasattr(agent, 'active') and not agent.active:
+                continue
 
-        ax.add_patch(Circle(agent.pos, 3, facecolor=VEC_STATION_COLORS[agent.station.unique_id], edgecolor='black'))
-        ax.text(agent.pos[0], agent.pos[1], str(agent.unique_id), ha='center', va='center')
-
-    for agent in model.schedule._agents_by_type.get(VECStationAgent, []):
-        color = VEC_STATION_COLORS[agent.unique_id]
-        ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
-        range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
-        ax.add_patch(range_circle)
-        range_circle = Circle(agent.pos, agent.distance_threshold * agent.range, color=color, fill=False,
-                              linestyle='--',
-                              alpha=0.5)
-        ax.add_patch(range_circle)
+            ax.add_patch(Circle(agent.pos, 3, facecolor=VEC_STATION_COLORS[agent.station.unique_id], edgecolor='black'))
+            ax.text(agent.pos[0], agent.pos[1], str(agent.unique_id), ha='center', va='center')
+        elif isinstance(agent, VECStationAgent):
+            color = VEC_STATION_COLORS[agent.unique_id]
+            ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
+            range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
+            ax.add_patch(range_circle)
+            range_circle = Circle(agent.pos, agent.distance_threshold * agent.range, color=color, fill=False,
+                                  linestyle='--',
+                                  alpha=0.5)
+            ax.add_patch(range_circle)
 
     ax.set_xlim(0, model.width)
     ax.set_ylim(0, model.height)
@@ -89,25 +89,26 @@ def render_model_orientations(model: VECModel):
     fig = Figure()
     ax = fig.subplots()
 
-    for agent in model.schedule._agents_by_type.get(VehicleAgent, []):
-        if not agent.active:
-            continue
+    for agent in model.agents:
+        if isinstance(agent, VehicleAgent):
+            if hasattr(agent, 'active') and not agent.active:
+                continue
 
-        arrow_length = 10
-        angle_rad = math.radians(agent.angle)
+            arrow_length = 10
+            angle_rad = math.radians(agent.angle)
 
-        dx = arrow_length * math.cos(angle_rad)
-        dy = arrow_length * math.sin(angle_rad)
+            dx = arrow_length * math.cos(angle_rad)
+            dy = arrow_length * math.sin(angle_rad)
 
-        arrow = FancyArrow(agent.pos[0] - dx / 2, agent.pos[1] - dy / 2, dx, dy, head_width=5, head_length=6,
-                           facecolor=VEC_STATION_COLORS[agent.station.unique_id], linewidth=0)
-        ax.add_patch(arrow)
+            arrow = FancyArrow(agent.pos[0] - dx / 2, agent.pos[1] - dy / 2, dx, dy, head_width=5, head_length=6,
+                               facecolor=VEC_STATION_COLORS[agent.station.unique_id], linewidth=0)
+            ax.add_patch(arrow)
 
-    for agent in model.schedule._agents_by_type.get(VECStationAgent, []):
-        color = VEC_STATION_COLORS[agent.unique_id]
-        ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
-        range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
-        ax.add_patch(range_circle)
+        elif isinstance(agent, VECStationAgent):
+            color = VEC_STATION_COLORS[agent.unique_id]
+            ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
+            range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
+            ax.add_patch(range_circle)
 
     ax.set_xlim(0, model.width)
     ax.set_ylim(0, model.height)
