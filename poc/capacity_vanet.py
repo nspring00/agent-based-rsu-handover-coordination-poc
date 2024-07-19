@@ -153,7 +153,7 @@ class VECStationAgent(simple.VECStationAgent):
 
     @property
     def load(self):
-        return len(self.vehicles)
+        return sum([vehicle.offloaded_load for vehicle in self.vehicles])
 
     def get_neighbor_load(self, neighbor_id):
         # noinspection PyTypeChecker
@@ -226,7 +226,7 @@ class VECStationAgent(simple.VECStationAgent):
                 logging.warning(f"Vehicle {vehicle.unique_id} is leaving coverage area!!")
             return False
 
-        logging.debug(f"Neighbors with score for vehicle {vehicle.unique_id}:", neighbors_with_score)
+        logging.debug(f"Neighbors with score for vehicle {vehicle.unique_id}: %s", neighbors_with_score)
 
         if neighbors_with_score[0][1] == 0 and not force:
             logging.warning(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
