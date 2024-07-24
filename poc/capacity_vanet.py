@@ -37,6 +37,11 @@ class RSAgentStrategy(ABC):
     def handle_offloading(self, station: "VECStationAgent"):
         pass
 
+    def after_step(self, model: "VECModel"):
+        # Default implementation does nothing.
+        # Subclasses can override this method if needed.
+        pass
+
 
 @lru_cache(maxsize=1)
 def get_grid():
@@ -221,14 +226,8 @@ class VECStationAgent(simple.VECStationAgent):
         for neighbor, score in neighbors_with_score:
             success = neighbor.request_handover(vehicle, force)
             if success:
-                self.vehicles.remove(vehicle)
+                self.perform_handover(neighbor, vehicle)
                 logging.info(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
-
-                # Stats
-                # noinspection PyTypeChecker
-                model: VECModel = self.model
-                model.report_successful_handovers += 1
-                model.report_total_successful_handovers += 1
 
                 return True
 
@@ -266,6 +265,17 @@ class VECStationAgent(simple.VECStationAgent):
         #
         # # TODO What to do if handover is unavoidable (e.g. capacity is full)?
 
+    def perform_handover(self, to: "VECStationAgent", vehicle: VehicleAgent):
+        self.vehicles.remove(vehicle)
+        to.vehicles.append(vehicle)
+        vehicle.station = to
+
+        # Stats
+        # noinspection PyTypeChecker
+        model: VECModel = self.model
+        model.report_successful_handovers += 1
+        model.report_total_successful_handovers += 1
+
     def request_handover(self, vehicle: VehicleAgent, force=False) -> bool:
         """
         A station requests that a vehicle be handed over to a neighbor station.
@@ -281,9 +291,6 @@ class VECStationAgent(simple.VECStationAgent):
                 return False
 
             # TODO: Implement more sophisticated check
-
-        self.vehicles.append(vehicle)
-        vehicle.station = self
 
         return True
 
@@ -425,6 +432,7 @@ class VECModel(Model):
         # TODO simplify??
         for _ in range(STEPS_PER_SECOND):
             self.schedule.step()
+            self.rs_strategy.after_step(self)
 
         self.datacollector.collect(self)
 
@@ -486,7 +494,7 @@ def compute_qos(model: VECModel) -> List[float]:
         return load_factor * distance_factor
 
     qos_list = []
-    for agent in model.schedule._agents_by_type.get(VehicleAgent, []):
+    for agent in model.schedule.get_agents_by_type(VehicleAgent):
         qos = qos_internal(agent)
         qos_list.append(qos)
 

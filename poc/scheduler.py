@@ -1,7 +1,9 @@
-from typing import Iterable, List
+from typing import Iterable, List, TypeVar, Type
 
 import mesa
 from mesa import Model, Agent
+
+T = TypeVar('T', bound=Agent)
 
 
 class RandomActivationBySortedType(mesa.time.RandomActivationByType):
@@ -18,3 +20,6 @@ class RandomActivationBySortedType(mesa.time.RandomActivationByType):
 
         self.steps += 1
         self.time += 1
+
+    def get_agents_by_type(self, agent_type: Type[T]) -> List[T]:
+        return self._agents_by_type.get(agent_type, [])
