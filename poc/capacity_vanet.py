@@ -1,6 +1,7 @@
 import logging
 import math
 import time
+from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Optional, List
 
@@ -29,6 +30,12 @@ VEC_STATION_COLORS = {
     10003: "orange",
     10004: "green",
 }
+
+
+class RSAgentStrategy(ABC):
+    @abstractmethod
+    def handle_offloading(self, station: "VECStationAgent"):
+        pass
 
 
 @lru_cache(maxsize=1)
@@ -140,8 +147,10 @@ class VECStationAgent(simple.VECStationAgent):
     """A VEC station agent with a communication range."""
 
     # TODO fix inheritance stuff
-    def __init__(self, unique_id, model: "VECModel", position, range_m, capacity, neighbors=None):
+    def __init__(self, unique_id, model: "VECModel", strategy: RSAgentStrategy, position, range_m, capacity,
+                 neighbors=None):
         super().__init__(unique_id, model, 0, 0, 0)
+        self.strategy = strategy
         self.pos = position
         self.range = range_m
         self.capacity = capacity
@@ -162,38 +171,7 @@ class VECStationAgent(simple.VECStationAgent):
 
     def step(self):
 
-        # Only temporary for demonstration
-        # self.vehicle_distance = distance(self.pos, self.model.vehicle.pos)
-
-        # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
-        for vehicle in list(self.vehicles):
-            # Check if vehicle is exiting the station's range soon
-            if calculate_trajectory_suitability(self, vehicle) < 0.9:
-                continue
-
-            logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {self.unique_id} range")
-            success = self.attempt_handover(vehicle)
-
-            if not success and calculate_trajectory_suitability(self, vehicle) > 0.95:
-                # Force handover
-                logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {self.unique_id}")
-                self.attempt_handover(vehicle, force=True)
-
-        # TODO move to global
-        # TODO should also consider other stations
-        if self.load < self.load_threshold * self.capacity:
-            return
-
-        # Iterate through vehicles sorted by
-        for vehicle in sorted(self.vehicles, key=lambda x: self.calculate_vehicle_handover_score(x), reverse=True):
-            # TODO move to global
-            # TODO should also consider other stations
-            if self.load < self.load_threshold * self.capacity:
-                return
-
-            logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
-
-            self.attempt_handover(vehicle, force=self.load > 0.95 * self.capacity)
+        self.strategy.handle_offloading(self)
 
     def calculate_vehicle_handover_score(self, vehicle: VehicleAgent):
         bearing_rad = self.calculate_vehicle_station_bearing(vehicle)
@@ -215,6 +193,7 @@ class VECStationAgent(simple.VECStationAgent):
 
     def attempt_handover(self, vehicle: VehicleAgent, force=False) -> bool:
 
+        # current_score = calculate_station_suitability_with_vehicle(self, self.load, vehicle, self)
         neighbors_with_score = [
             (x, calculate_station_suitability_with_vehicle(x, self.get_neighbor_load(x.unique_id), vehicle, self))
             for x in self.neighbors if
@@ -231,6 +210,11 @@ class VECStationAgent(simple.VECStationAgent):
         if neighbors_with_score[0][1] == 0 and not force:
             logging.warning(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
             return False
+
+        # if neighbors_with_score[0][1] < current_score and not force:
+        #     logging.info(
+        #         f"Vehicle {vehicle.unique_id} is not handed over to any neighbor due to no better suitability (no force)")
+        #     return False
 
         # Loop through sorted neighbors and handover to the first one that accepts
         # TODO this probably doesnt work anymore once we introduce latency
@@ -318,10 +302,11 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, max_capacity=30, load_update_interval=1, start_at=0, **kwargs):
+    def __init__(self, rs_strategy: RSAgentStrategy, max_capacity=30, load_update_interval=1, start_at=0, **kwargs):
         # Seed is set via super().new()
         super().__init__()
         self.running = True
+        self.rs_strategy = rs_strategy
         self.max_capacity = max_capacity
         self.load_update_interval = load_update_interval
         self.traces = get_traces()
@@ -372,7 +357,7 @@ class VECModel(Model):
         ]
         self.vec_stations = []
         for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, pos, 65, max_capacity)
+            station = VECStationAgent(10000 + i, self, self.rs_strategy, pos, 65, max_capacity)
             self.vec_stations.append(station)
             self.schedule.add(station)
 
@@ -508,6 +493,43 @@ def compute_qos(model: VECModel) -> List[float]:
     return qos_list
 
 
+class DefaultOffloadingStrategy(RSAgentStrategy):
+    def handle_offloading(self, station: VECStationAgent):
+        # Only temporary for demonstration
+        # self.vehicle_distance = distance(self.pos, self.model.vehicle.pos)
+
+        # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
+        for vehicle in list(station.vehicles):
+            # Check if vehicle is exiting the station's range soon
+            if calculate_trajectory_suitability(station, vehicle) < 0.9:
+                continue
+
+            logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {station.unique_id} range")
+            success = station.attempt_handover(vehicle)
+
+            if not success and calculate_trajectory_suitability(station, vehicle) > 0.95:
+                # Force handover
+                logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {station.unique_id}")
+                station.attempt_handover(vehicle, force=True)
+
+        # TODO move to global
+        # TODO should also consider other stations
+        if station.load < station.load_threshold * station.capacity:
+            return
+
+        # Iterate through vehicles sorted by
+        for vehicle in sorted(station.vehicles, key=lambda x: station.calculate_vehicle_handover_score(x),
+                              reverse=True):
+            # TODO move to global
+            # TODO should also consider other stations
+            if station.load < station.load_threshold * station.capacity:
+                return
+
+            logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
+
+            station.attempt_handover(vehicle, force=station.load > 0.95 * station.capacity)
+
+
 def main():
     # Configuration for demonstration
     road_width = 200  # meters
@@ -600,9 +622,11 @@ def print_model_metrics(model, model_name):
 def compare_load_sharing():
     start = time.time()
 
-    model1 = VECModel(25, 1, seed=SEED)
-    model5 = VECModel(25, 5, seed=SEED)
-    model10 = VECModel(25, 10, seed=SEED)
+    rs_strategy = DefaultOffloadingStrategy()
+
+    model1 = VECModel(rs_strategy, 25, 1, seed=SEED)
+    model5 = VECModel(rs_strategy, 25, 5, seed=SEED)
+    model10 = VECModel(rs_strategy, 25, 10, seed=SEED)
 
     for i in range(1000):
         if (i + 1) % 100 == 0:
@@ -619,16 +643,16 @@ def compare_load_sharing():
     #
     # results = mesa.batch_run(VECModel, params, max_steps=1000, number_processes=None)
 
-    assert model1.report_total_successful_handovers == 2959
-    assert model5.report_total_successful_handovers == 2905
-    assert model10.report_total_successful_handovers == 2751
-
     print("Time elapsed:", int(time.time() - start), "s")
 
     # "Regression test"
     print_model_metrics(model1, "ShareLoadFreq1")
     print_model_metrics(model5, "ShareLoadFreq5")
     print_model_metrics(model10, "ShareLoadFreq10")
+
+    assert model1.report_total_successful_handovers == 2959
+    assert model5.report_total_successful_handovers == 2905
+    assert model10.report_total_successful_handovers == 2751
 
 
 if __name__ == "__main__":
