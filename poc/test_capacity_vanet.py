@@ -3,7 +3,7 @@ import unittest
 
 from mesa import Model
 
-from capacity_vanet import is_moving_towards, VECModel, VECStationAgent, VehicleAgent
+from capacity_vanet import is_moving_towards, VECModel, VECStationAgent, VehicleAgent, DefaultOffloadingStrategy
 
 
 class TestIsMovingTowards(unittest.TestCase):
@@ -37,7 +37,7 @@ class TestVECStationAgent(unittest.TestCase):
 
         # noinspection PyTypeChecker
         model: VECModel = MockModel()
-        station = VECStationAgent(0, model, (10, 10), 10, 10)
+        station = VECStationAgent(0, model, DefaultOffloadingStrategy(), (10, 10), 10, 10)
 
         vehicle = VehicleAgent(0, model, None)
 
