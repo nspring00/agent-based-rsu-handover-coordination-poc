@@ -123,6 +123,10 @@ class VehicleAgent(simple.VehicleAgent):
         # if external_ts > self.trace.last_ts:
         #     self.active = False
 
+    @property
+    def rsu_distance(self):
+        return distance(self.pos, self.station.pos)
+
 
 def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: VehicleAgent):
     bearing_rad = station.calculate_vehicle_station_bearing(vehicle)
@@ -536,6 +540,28 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
             logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
 
             station.attempt_handover(vehicle, force=station.load > 0.95 * station.capacity)
+
+
+class NearestRSUStrategy(RSAgentStrategy):
+    def handle_offloading(self, station: VECStationAgent):
+        # A vehicle should always be connected to the nearest RSU
+        # Check for all vehicles that the nearest RSU is the current, otherwise hand over to nearest
+        for vehicle in list(station.vehicles):
+            nearest_station = min(station.neighbors, key=lambda x: distance(x.pos, vehicle.pos))
+            if distance(nearest_station.pos, vehicle.pos) < distance(station.pos, vehicle.pos):
+                logging.info(
+                    f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
+                station.perform_handover(nearest_station, vehicle)
+
+    def after_step(self, model: VECModel):
+        # Assert that every vehicle is connected to the nearest station
+        vehicles = model.schedule.get_agents_by_type(VehicleAgent)
+        stations = model.vec_stations
+
+        for vehicle in vehicles:
+            nearest_station = min(stations, key=lambda x: distance(x.pos, vehicle.pos))
+            assert distance(nearest_station.pos, vehicle.pos) == distance(vehicle.station.pos, vehicle.pos), \
+                f"Vehicle {vehicle.unique_id} is not connected to the nearest station"
 
 
 def main():
