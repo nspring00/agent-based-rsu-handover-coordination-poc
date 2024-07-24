@@ -12,7 +12,8 @@ class RandomActivationBySortedType(mesa.time.RandomActivationByType):
         self.types = types
 
     def step(self, shuffle_types: bool = False, shuffle_agents: bool = True) -> None:
-        self.model.random.shuffle(self.types)
+        if shuffle_types:
+            self.model.random.shuffle(self.types)
         for agent_type in self.types:
             if agent_type not in self._agents_by_type:
                 continue
