@@ -164,7 +164,7 @@ class VECStationAgent(simple.VECStationAgent):
         self.range = range_m
         self.capacity = capacity
         self.neighbors: List[VECStationAgent] = neighbors if neighbors else []
-        self.vehicles = []
+        self.vehicles: List[VehicleAgent] = []
         self.distance_threshold = 0.7
         self.load_threshold = 0.7
         self.vehicle_distance = None
@@ -562,6 +562,22 @@ class NearestRSUStrategy(RSAgentStrategy):
             nearest_station = min(stations, key=lambda x: distance(x.pos, vehicle.pos))
             assert distance(nearest_station.pos, vehicle.pos) == distance(vehicle.station.pos, vehicle.pos), \
                 f"Vehicle {vehicle.unique_id} is not connected to the nearest station"
+
+
+class LatestPossibleHandoverStrategy(RSAgentStrategy):
+    def handle_offloading(self, station: VECStationAgent):
+        # We know that all vehicles move before the RSU handover phase
+        # Therefore, we only need to check if some vehicles are out of the range of the RSU
+        # If so, perform handover to the nearest other RSU
+        for vehicle in list(station.vehicles):
+            if vehicle.rsu_distance > station.range:
+                nearest_station = min(station.neighbors, key=lambda x: distance(x.pos, vehicle.pos))
+                if nearest_station == station:
+                    logging.warning(f"Vehicle {vehicle.unique_id} is out of range of all RSUs")
+                    continue
+                logging.info(
+                    f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
+                station.perform_handover(nearest_station, vehicle)
 
 
 def main():
