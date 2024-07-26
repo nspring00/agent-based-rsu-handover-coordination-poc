@@ -720,8 +720,10 @@ def compare_load_sharing():
         print_model_metrics(modelLatest, "LatestHO")
     ]
 
+    results.sort(key=lambda x: x[0])
+
     # Write to CSV with header line
-    with open("results.csv", "w") as f:
+    with open("../results/results.csv", "w") as f:
         f.write("Model,Successful,Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd,GiniMean,GiniStd\n")
         for result in results:
             f.write(",".join(map(str, result)) + "\n")
