@@ -10,3 +10,7 @@ datasets/*
 *.png
 *.npy
 *-checkpoint.ipynb
+
+venv/
+.venv/
+__pycache__/
