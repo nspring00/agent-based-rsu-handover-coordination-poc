@@ -665,18 +665,33 @@ def print_model_metrics(model, model_name):
     print(f"{model_name} Success: {df['TotalSuccessfulHandoverCount'].iloc[-1]}")
     print(f"{model_name} Failed: {df['TotalFailedHandoverCount'].iloc[-1]}")
     print(f"{model_name} QoS: {df['AvgQoS'][start_index:].mean()}")
+    print(f"{model_name} QoSStd: {df['AvgQoS'][start_index:].std()}")
     print(f"{model_name} QoSMin: {df['MinQoS'][start_index:].mean()}")
+    print(f"{model_name} QoSMinStd: {df['MinQoS'][start_index:].std()}")
     print(f"{model_name} Gini: {df['GiniLoad'][start_index:].mean()}")
+    print(f"{model_name} GiniStd: {df['GiniLoad'][start_index:].std()}")
+
+    return [
+        model_name,
+        df['TotalSuccessfulHandoverCount'].iloc[-1],
+        df['TotalFailedHandoverCount'].iloc[-1],
+        df['AvgQoS'][start_index:].mean(),
+        df['AvgQoS'][start_index:].std(),
+        df['MinQoS'][start_index:].mean(),
+        df['MinQoS'][start_index:].std(),
+        df['GiniLoad'][start_index:].mean(),
+        df['GiniLoad'][start_index:].std()
+    ]
 
 
 def compare_load_sharing():
     start = time.time()
 
-    rs_strategy = DefaultOffloadingStrategy()
-
-    model1 = VECModel(rs_strategy, 25, 1, seed=SEED)
-    model5 = VECModel(rs_strategy, 25, 5, seed=SEED)
-    model10 = VECModel(rs_strategy, 25, 10, seed=SEED)
+    model1 = VECModel(DefaultOffloadingStrategy(), 25, 1, seed=SEED)
+    model5 = VECModel(DefaultOffloadingStrategy(), 25, 5, seed=SEED)
+    model10 = VECModel(DefaultOffloadingStrategy(), 25, 10, seed=SEED)
+    modelNearest = VECModel(NearestRSUStrategy(), 25, 1, seed=SEED)
+    modelLatest = VECModel(LatestPossibleHandoverStrategy(), 25, 1, seed=SEED)
 
     for i in range(1000):
         if (i + 1) % 100 == 0:
@@ -684,6 +699,8 @@ def compare_load_sharing():
         model1.step()
         model5.step()
         model10.step()
+        modelNearest.step()
+        modelLatest.step()
 
     # params = {
     #     "load_update_interval": [1, 5, 10],
@@ -695,14 +712,24 @@ def compare_load_sharing():
 
     print("Time elapsed:", int(time.time() - start), "s")
 
-    # "Regression test"
-    print_model_metrics(model1, "ShareLoadFreq1")
-    print_model_metrics(model5, "ShareLoadFreq5")
-    print_model_metrics(model10, "ShareLoadFreq10")
+    results = [
+        print_model_metrics(model1, "ShareLoadFreq1"),
+        print_model_metrics(model5, "ShareLoadFreq5"),
+        print_model_metrics(model10, "ShareLoadFreq10"),
+        print_model_metrics(modelNearest, "NearestRSU"),
+        print_model_metrics(modelLatest, "LatestHO")
+    ]
 
-    assert model1.report_total_successful_handovers == 2959
-    assert model5.report_total_successful_handovers == 2905
-    assert model10.report_total_successful_handovers == 2751
+    # Write to CSV with header line
+    with open("results.csv", "w") as f:
+        f.write("Model,Successful,Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd,GiniMean,GiniStd\n")
+        for result in results:
+            f.write(",".join(map(str, result)) + "\n")
+
+    # "Regression test"
+    # assert model1.report_total_successful_handovers == 2959
+    # assert model5.report_total_successful_handovers == 2905
+    # assert model10.report_total_successful_handovers == 2751
 
 
 if __name__ == "__main__":
