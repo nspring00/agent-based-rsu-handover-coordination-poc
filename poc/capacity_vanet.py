@@ -3,6 +3,7 @@ import math
 import time
 from abc import ABC, abstractmethod
 from functools import lru_cache
+from multiprocessing import Pool
 from typing import Optional, List
 
 import mesa
@@ -684,41 +685,36 @@ def print_model_metrics(model, model_name):
     ]
 
 
+def run_model(params):
+    logging.disable(logging.CRITICAL)
+
+    model_name, strategy, max_capacity, load_update_interval, seed = params
+    model = VECModel(strategy, max_capacity, load_update_interval, seed=seed)
+    for _ in range(1000):
+        model.step()
+    return print_model_metrics(model, model_name)
+
+
 def compare_load_sharing():
     start = time.time()
 
-    model1 = VECModel(DefaultOffloadingStrategy(), 25, 1, seed=SEED)
-    model5 = VECModel(DefaultOffloadingStrategy(), 25, 5, seed=SEED)
-    model10 = VECModel(DefaultOffloadingStrategy(), 25, 10, seed=SEED)
-    modelNearest = VECModel(NearestRSUStrategy(), 25, 1, seed=SEED)
-    modelLatest = VECModel(LatestPossibleHandoverStrategy(), 25, 1, seed=SEED)
+    strategies = [
+        ("ShareLoadFreq01", DefaultOffloadingStrategy(), 25, 1, SEED),
+        ("ShareLoadFreq05", DefaultOffloadingStrategy(), 25, 5, SEED),
+        ("ShareLoadFreq10", DefaultOffloadingStrategy(), 25, 10, SEED),
+        ("NearestRSU", NearestRSUStrategy(), 25, 1, SEED),
+        ("LatestHO", LatestPossibleHandoverStrategy(), 25, 1, SEED)
+    ]
 
-    for i in range(1000):
-        if (i + 1) % 100 == 0:
-            print(i + 1)
-        model1.step()
-        model5.step()
-        model10.step()
-        modelNearest.step()
-        modelLatest.step()
-
-    # params = {
-    #     "load_update_interval": [1, 5, 10],
-    #     "max_capacity": 25,
-    #     "seed": SEED
-    # }
-    #
-    # results = mesa.batch_run(VECModel, params, max_steps=1000, number_processes=None)
+    i = 0
+    results = []
+    with Pool(None) as p:
+        for res in p.imap_unordered(run_model, strategies):
+            i += 1
+            print(i, "/", len(strategies))
+            results.append(res)
 
     print("Time elapsed:", int(time.time() - start), "s")
-
-    results = [
-        print_model_metrics(model1, "ShareLoadFreq1"),
-        print_model_metrics(model5, "ShareLoadFreq5"),
-        print_model_metrics(model10, "ShareLoadFreq10"),
-        print_model_metrics(modelNearest, "NearestRSU"),
-        print_model_metrics(modelLatest, "LatestHO")
-    ]
 
     results.sort(key=lambda x: x[0])
 
