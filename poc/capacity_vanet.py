@@ -580,6 +580,54 @@ class LatestPossibleHandoverStrategy(RSAgentStrategy):
                     f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
                 station.perform_handover(nearest_station, vehicle)
 
+    def after_step(self, model: "VECModel"):
+        # Check that each vehicle is in range of its station
+        for vehicle in model.schedule.get_agents_by_type(VehicleAgent):
+            assert vehicle.station.is_vehicle_in_range(vehicle), f"Vehicle {vehicle.unique_id} is out of range"
+
+
+class EarliestPossibleHandoverStrategy(RSAgentStrategy):
+    def __init__(self, max_recent_connections=2):
+        # Track a deque of RSUs to which vehicles were recently connected
+        self.previously_connected = defaultdict(lambda: deque(maxlen=max_recent_connections))
+        self.max_recent_connections = max_recent_connections
+
+    def handle_offloading(self, station: VECStationAgent):
+        # For each vehicle, check if another RSU is in range which wasn't previously connected
+        # If so, perform handover to closest
+        for vehicle in list(station.vehicles):
+            # Filter stations that are in range
+            # todo check on moving towards
+            in_range_stations = [x for x in station.neighbors
+                                 if x.unique_id not in self.previously_connected[vehicle.unique_id]
+                                 and distance(x.pos, vehicle.pos) <= x.range
+                                 and is_moving_towards(vehicle.pos, vehicle.angle, x.pos)]
+
+            if not in_range_stations:
+                if station.is_vehicle_in_range(vehicle):
+                    continue
+
+                # TODO still somewhat bugged
+                # Special case: All stations in range are in previous connections
+                in_range_stations = [x for x in station.neighbors
+                                     if distance(x.pos, vehicle.pos) <= x.range]
+
+            # Get the closest station that wasn't previously connected
+            nearest_station = min(in_range_stations, key=lambda x: distance(x.pos, vehicle.pos))
+
+            # print(station.unique_id, "->", nearest_station.unique_id)
+            logging.info(
+                f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
+            station.perform_handover(nearest_station, vehicle)
+            self.previously_connected[vehicle.unique_id].append(station.unique_id)
+
+    def after_step(self, model: "VECModel"):
+        # Check that each vehicle is in range of its station
+        for vehicle in model.schedule.get_agents_by_type(VehicleAgent):
+            if not vehicle.station.is_vehicle_in_range(vehicle):
+                print("????????????")
+            # assert vehicle.station.is_vehicle_in_range(vehicle), f"Vehicle {vehicle.unique_id} is out of range"
+
 
 def main():
     # Configuration for demonstration
