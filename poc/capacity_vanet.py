@@ -2,6 +2,7 @@ import logging
 import math
 import time
 from abc import ABC, abstractmethod
+from collections import defaultdict, deque
 from functools import lru_cache
 from multiprocessing import Pool
 from typing import Optional, List
@@ -127,6 +128,9 @@ class VehicleAgent(simple.VehicleAgent):
     @property
     def rsu_distance(self):
         return distance(self.pos, self.station.pos)
+
+    def __repr__(self):
+        return f"VehicleAgent{self.unique_id}"
 
 
 def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: VehicleAgent):
@@ -271,6 +275,7 @@ class VECStationAgent(simple.VECStationAgent):
         # # TODO What to do if handover is unavoidable (e.g. capacity is full)?
 
     def perform_handover(self, to: "VECStationAgent", vehicle: VehicleAgent):
+        assert self != to, "Cannot hand over to the same station"
         self.vehicles.remove(vehicle)
         to.vehicles.append(vehicle)
         vehicle.station = to
@@ -309,6 +314,9 @@ class VECStationAgent(simple.VECStationAgent):
 
     def __repr__(self):
         return f"VECStation{self.unique_id}"
+
+    def is_vehicle_in_range(self, vehicle: VehicleAgent):
+        return distance(self.pos, vehicle.pos) <= self.range
 
 
 class VECModel(Model):
@@ -362,9 +370,9 @@ class VECModel(Model):
         # ]
         # TODO check station positions
         station_positions = [
-            (75, 45),  # red
+            (75, 50),  # red
             (40, 120),  # blue
-            (120, 155),  # yellow
+            (115, 145),  # yellow
             (160, 50)  # green
         ]
         self.vec_stations = []
@@ -378,7 +386,7 @@ class VECModel(Model):
                                               if distance(station.pos, self.vec_stations[i].pos) <= station.range +
                                               self.vec_stations[i].range and station != self.vec_stations[i]]
 
-        self.vehicle_id = 1
+        self.vehicle_id = 0
 
         self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in self.traces.items()]
         self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
@@ -398,13 +406,12 @@ class VECModel(Model):
         for _ in range(start_at):
             self.step()
 
-    def spawn_vehicle(self, trace_id, step):
+    def spawn_vehicle(self, trace_id, step) -> Optional[VehicleAgent]:
+        self.vehicle_id += 1
         vehicle = VehicleAgent(self.vehicle_id, self, self.traces[trace_id])
         vehicle.ts = step // TIME_STEP_S
 
         self.schedule.add(vehicle)
-
-        self.vehicle_id += 1
 
         station = min(self.vec_stations, key=lambda x: distance(x.pos, vehicle.pos))
         station.vehicles.append(vehicle)
@@ -429,6 +436,8 @@ class VECModel(Model):
         while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_second:
             v_trace = self.unplaced_vehicles.pop()
             v = self.spawn_vehicle(v_trace.id, self.step_second)
+            if not v:
+                continue
 
             # Insert while sorting on last_ts
             self.to_remove.append(v)
@@ -733,10 +742,19 @@ def print_model_metrics(model, model_name):
     ]
 
 
+STRATEGIES_DICT = {
+    "default": DefaultOffloadingStrategy,
+    "nearest": NearestRSUStrategy,
+    "earliest": EarliestPossibleHandoverStrategy,
+    "latest": LatestPossibleHandoverStrategy,
+}
+
+
 def run_model(params):
     logging.disable(logging.CRITICAL)
 
     model_name, strategy, max_capacity, load_update_interval, seed = params
+    strategy = STRATEGIES_DICT[strategy]()
     model = VECModel(strategy, max_capacity, load_update_interval, seed=seed)
     for _ in range(1000):
         model.step()
@@ -747,20 +765,26 @@ def compare_load_sharing():
     start = time.time()
 
     strategies = [
-        ("ShareLoadFreq01", DefaultOffloadingStrategy(), 25, 1, SEED),
-        ("ShareLoadFreq05", DefaultOffloadingStrategy(), 25, 5, SEED),
-        ("ShareLoadFreq10", DefaultOffloadingStrategy(), 25, 10, SEED),
-        ("NearestRSU", NearestRSUStrategy(), 25, 1, SEED),
-        ("LatestHO", LatestPossibleHandoverStrategy(), 25, 1, SEED)
+        ("ShareLoadFreq01", "default", 25, 1, SEED),
+        ("ShareLoadFreq05", "default", 25, 5, SEED),
+        ("ShareLoadFreq10", "default", 25, 10, SEED),
+        ("NearestRSU", "nearest", 25, 1, SEED),
+        ("EarliestHO", "earliest", 25, 1, SEED),
+        ("LatestHO", "latest", 25, 1, SEED),
     ]
 
     i = 0
     results = []
-    with Pool(None) as p:
-        for res in p.imap_unordered(run_model, strategies):
-            i += 1
-            print(i, "/", len(strategies))
-            results.append(res)
+    if len(strategies) == 1:
+        # Run in same thread for debugging
+        results.append(run_model(strategies[0]))
+    else:
+        print("Start multi-threaded execution")
+        with Pool(None) as p:
+            for res in p.imap_unordered(run_model, strategies):
+                i += 1
+                print(i, "/", len(strategies))
+                results.append(res)
 
     print("Time elapsed:", int(time.time() - start), "s")
 
