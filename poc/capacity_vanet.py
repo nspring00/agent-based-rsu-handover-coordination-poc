@@ -20,7 +20,7 @@ from scheduler import RandomActivationBySortedType
 SEED = 42
 
 # Constants for the simulation, adjusted for demonstration
-TIME_STEP_MS = 500  # Time step in milliseconds
+TIME_STEP_MS = 1000  # Time step in milliseconds
 TIME_STEP_S = TIME_STEP_MS / 1000.0  # Time step in seconds
 STEPS_PER_SECOND = int(1 // TIME_STEP_S)  # Number of steps per second
 assert np.isclose(STEPS_PER_SECOND * TIME_STEP_S, 1.0, rtol=1e-09, atol=1e-09), "Time step conversion error"
