@@ -134,12 +134,18 @@ class VehicleAgent(simple.VehicleAgent):
 
 
 def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: VehicleAgent):
+    """
+    Calculate the suitability of a vehicle's trajectory to the station.
+    The suitability is a value between 0 and 1, where 1 is the best suitability.
+    """
+
     bearing_rad = station.calculate_vehicle_station_bearing(vehicle)
     vehicle_angle_rad = math.radians(vehicle.angle)
 
     angle_at_vehicle = bearing_rad - vehicle_angle_rad
 
-    ho_metric = (0.5 * math.cos(angle_at_vehicle) + 0.75) / 1.25 * distance(station.pos, vehicle.pos) / station.range
+    ho_metric = 1 - (0.5 * math.cos(angle_at_vehicle) + 0.75) / 1.25 * distance(station.pos,
+                                                                                vehicle.pos) / station.range
 
     return ho_metric
 
@@ -150,12 +156,12 @@ def calculate_station_suitability_with_vehicle(station: "VECStationAgent", stati
         return 0
 
     capacity_suitability = (station.capacity - station_load - vehicle.offloaded_load) / station.capacity
-    relative_capacity_suitability = (current_station.load / current_station.capacity) / (
-            station_load / station.capacity)
+    # relative_capacity_suitability = (current_station.load / current_station.capacity) / (
+    #        station_load / station.capacity)
     trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
 
     # TODO work on suitability score
-    return capacity_suitability * trajectory_suitability * relative_capacity_suitability
+    return capacity_suitability * trajectory_suitability  # * relative_capacity_suitability
 
 
 class VECStationAgent(simple.VECStationAgent):
@@ -311,7 +317,7 @@ class VECStationAgent(simple.VECStationAgent):
         # return (distance(self.pos, vehicle.pos) > self.range * self.distance_threshold
         #         and not is_moving_towards(vehicle.pos, vehicle.angle, self.pos))
 
-        return calculate_trajectory_suitability(self, vehicle) > 0.9
+        return calculate_trajectory_suitability(self, vehicle) < 0.1
 
     def __repr__(self):
         return f"VECStation{self.unique_id}"
@@ -524,13 +530,13 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
         # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
         for vehicle in list(station.vehicles):
             # Check if vehicle is exiting the station's range soon
-            if calculate_trajectory_suitability(station, vehicle) < 0.85:
+            if calculate_trajectory_suitability(station, vehicle) > 0.15:
                 continue
 
             logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {station.unique_id} range")
             success = station.attempt_handover(vehicle)
 
-            if not success and calculate_trajectory_suitability(station, vehicle) > 0.95:
+            if not success and calculate_trajectory_suitability(station, vehicle) < 0.05:
                 # Force handover
                 logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {station.unique_id}")
                 station.attempt_handover(vehicle, force=True)
@@ -637,6 +643,7 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
             if not vehicle.station.is_vehicle_in_range(vehicle):
                 print("????????????")
             assert vehicle.station.is_vehicle_in_range(vehicle), f"Vehicle {vehicle.unique_id} is out of range"
+
 
 class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
     def __init__(self, max_recent_connections=2):
