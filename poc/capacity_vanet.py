@@ -177,18 +177,17 @@ class VECStationAgent(simple.VECStationAgent):
         self.capacity = capacity
         self.neighbors: List[VECStationAgent] = neighbors if neighbors else []
         self.vehicles: List[VehicleAgent] = []
-        self.distance_threshold = 0.7
+        self.distance_threshold = 0.7  # Can be removed (except rendering)
         self.load_threshold = 0.95
         self.vehicle_distance = None
+        self.neighbor_load = {x.unique_id: 0 for x in self.neighbors}
 
     @property
     def load(self):
         return sum([vehicle.offloaded_load for vehicle in self.vehicles])
 
     def get_neighbor_load(self, neighbor_id):
-        # noinspection PyTypeChecker
-        model: VECModel = self.model
-        return model.shared_load_info[neighbor_id]
+        return self.neighbor_load[neighbor_id]
 
     def step(self):
         self.strategy.handle_offloading(self)
@@ -379,6 +378,7 @@ class VECModel(Model):
             self.vec_stations[i].neighbors = [station for station in self.vec_stations
                                               if distance(station.pos, self.vec_stations[i].pos) <= station.range +
                                               self.vec_stations[i].range and station != self.vec_stations[i]]
+            self.vec_stations[i].neighbor_load = {x.unique_id: 0 for x in self.vec_stations[i].neighbors}
 
         self.vehicle_id = 0
         self.shared_load_info = {s.unique_id: 0 for s in self.vec_stations}
@@ -453,7 +453,10 @@ class VECModel(Model):
         self.report_failed_handovers = 0
 
     def update_shared_load_info(self):
-        self.shared_load_info = {station.unique_id: station.load for station in self.vec_stations}
+        for station in self.vec_stations:
+            for neighbor in self.vec_stations:
+                if neighbor in station.neighbor_load or neighbor in station.neighbors:
+                    station.neighbor_load[neighbor.unique_id] = neighbor.load
 
     def report_avg_qos(self):
         qos = compute_qos(self)
