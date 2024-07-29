@@ -137,31 +137,39 @@ def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: Vehicl
     """
     Calculate the suitability of a vehicle's trajectory to the station.
     The suitability is a value between 0 and 1, where 1 is the best suitability.
+    Returns 0 if the vehicle is not in range.
     """
+
+    if not station.is_vehicle_in_range(vehicle):
+        return 0
 
     bearing_rad = station.calculate_vehicle_station_bearing(vehicle)
     vehicle_angle_rad = math.radians(vehicle.angle)
 
     angle_at_vehicle = bearing_rad - vehicle_angle_rad
 
-    ho_metric = 1 - (0.5 * math.cos(angle_at_vehicle) + 0.75) / 1.25 * distance(station.pos,
-                                                                                vehicle.pos) / station.range
+    result = 1 - (0.5 * math.cos(angle_at_vehicle) + 0.75) / 1.25 * distance(station.pos, vehicle.pos) / station.range
 
-    return ho_metric
+    assert 0 <= result <= 1, f"Handover metric is out of bounds: {result}"
+    return result
 
 
-def calculate_station_suitability_with_vehicle(station: "VECStationAgent", station_load: float, vehicle: VehicleAgent,
-                                               current_station: "VECStationAgent"):
+def calculate_station_suitability_with_vehicle(station: "VECStationAgent", station_load: float, vehicle: VehicleAgent):
+    """
+    Calculate the suitability of a station to receive a vehicle.
+    The suitability is a value between 0 and 1, where 1 is the best suitability.
+    Returns 0 if the station is not in range or the target station's capacity would be exceeded after HO.
+    """
+
     if station_load + vehicle.offloaded_load > station.capacity:
         return 0
 
-    capacity_suitability = (station.capacity - station_load - vehicle.offloaded_load) / station.capacity
-    # relative_capacity_suitability = (current_station.load / current_station.capacity) / (
-    #        station_load / station.capacity)
+    capacity_suitability = max(0, (station.capacity - station_load - vehicle.offloaded_load) / station.capacity)
     trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
+    suitability = capacity_suitability * trajectory_suitability
 
-    # TODO work on suitability score
-    return capacity_suitability * trajectory_suitability  # * relative_capacity_suitability
+    assert 0 <= suitability <= 1, f"Suitability score is out of bounds: {suitability}"
+    return suitability
 
 
 class VECStationAgent(simple.VECStationAgent):
@@ -207,7 +215,7 @@ class VECStationAgent(simple.VECStationAgent):
 
         # current_score = calculate_station_suitability_with_vehicle(self, self.load, vehicle, self)
         neighbors_with_score = [
-            (x, calculate_station_suitability_with_vehicle(x, self.get_neighbor_load(x.unique_id), vehicle, self))
+            (x, calculate_station_suitability_with_vehicle(x, self.get_neighbor_load(x.unique_id), vehicle))
             for x in self.neighbors if
             distance(x.pos, vehicle.pos) < x.range]
         neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
@@ -588,8 +596,8 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
         for neighbor_station in station.neighbors:
             vehicles_with_suitability = [
                 (calculate_station_suitability_with_vehicle(neighbor_station,
-                                                            station.get_neighbor_load(neighbor_station.unique_id), v,
-                                                            station), v)
+                                                            station.get_neighbor_load(neighbor_station.unique_id), v),
+                 v)
                 for v in station.vehicles]
             vehicles_with_suitability.sort(key=lambda x: x[0], reverse=True)
 
