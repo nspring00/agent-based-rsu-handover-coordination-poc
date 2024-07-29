@@ -547,6 +547,73 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
             station.attempt_handover(vehicle, force=station.load > 0.95 * station.capacity)
 
 
+class DefaultOffloadingStrategy2(RSAgentStrategy):
+    def __init__(self, overload_threshold=0.95):
+        self.overload_threshold = overload_threshold
+
+    def handle_offloading(self, station: VECStationAgent):
+
+        # Step 1: Hand-over vehicles that are leaving anyway
+        for vehicle in list(station.vehicles):
+            trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
+            if trajectory_suitability < 0.15:
+                self.handle_vehicle_leaving_range(station, vehicle, trajectory_suitability)
+
+        # Step 2: Hand-over vehicles to neighboring stations considering load balancing
+        self.handle_load_balancing_with_neighbors(station)
+
+        # Step 3: Manage overload by prioritizing vehicles for handover
+        # TODO move to global
+        # TODO should also consider other stations
+        if station.load > station.load_threshold * station.capacity:
+            self.manage_overload(station)
+
+    def handle_vehicle_leaving_range(self, station, vehicle, trajectory_suitability):
+        logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {station.unique_id} range")
+        success = station.attempt_handover(vehicle)
+
+        if not success and trajectory_suitability < 0.05:
+            # Force handover
+            logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {station.unique_id}")
+            station.attempt_handover(vehicle, force=True)
+
+    def handle_load_balancing_with_neighbors(self, station: VECStationAgent):
+        for neighbor_station in station.neighbors:
+            vehicles_with_suitability = [
+                (calculate_station_suitability_with_vehicle(neighbor_station,
+                                                            station.get_neighbor_load(neighbor_station.unique_id), v,
+                                                            station), v)
+                for v in station.vehicles]
+            vehicles_with_suitability.sort(key=lambda x: x[0], reverse=True)
+
+            # todo use load sharing info
+            for suitability, vehicle in vehicles_with_suitability:
+                if suitability < 0.2 or (
+                        neighbor_station.load + vehicle.offloaded_load) / neighbor_station.capacity > station.load / station.capacity - 0.1:
+                    break
+
+                success = neighbor_station.request_handover(vehicle)
+                if not success:
+                    break
+
+                logging.info(
+                    f"Vehicle {vehicle.unique_id} is being handed over to VEC station {neighbor_station.unique_id} to balance load")
+                station.perform_handover(neighbor_station, vehicle)
+
+    def manage_overload(self, station: VECStationAgent):
+        # Iterate through vehicles sorted by trajectory suitability ascending, selects the least suitable first
+        for vehicle in sorted(station.vehicles, key=lambda x: calculate_trajectory_suitability(station, x),
+                              reverse=False):
+            # TODO move to global
+            # TODO should also consider other stations
+            if station.load < station.load_threshold * station.capacity:
+                return
+
+            logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
+
+            station.attempt_handover(vehicle, force=station.load > 0.95 * station.capacity)
+
+
 class NearestRSUStrategy(RSAgentStrategy):
     def handle_offloading(self, station: VECStationAgent):
         # A vehicle should always be connected to the nearest RSU
@@ -775,6 +842,7 @@ def print_model_metrics(model, model_name):
 
 STRATEGIES_DICT = {
     "default": DefaultOffloadingStrategy,
+    "default2": DefaultOffloadingStrategy2,
     "nearest": NearestRSUStrategy,
     "earliest": EarliestPossibleHandoverStrategy,
     "earliest2": EarliestPossibleHandoverNoBackStrategy,
@@ -800,6 +868,9 @@ def compare_load_sharing():
         ("ShareLoadFreq01", "default", 25, 1, SEED),
         ("ShareLoadFreq05", "default", 25, 5, SEED),
         ("ShareLoadFreq10", "default", 25, 10, SEED),
+        ("2ShareLoadFreq01", "default2", 25, 1, SEED),
+        ("2ShareLoadFreq05", "default2", 25, 5, SEED),
+        ("2ShareLoadFreq10", "default2", 25, 10, SEED),
         ("NearestRSU", "nearest", 25, 1, SEED),
         ("EarliestHO", "earliest", 25, 1, SEED),
         ("EarliestHONoBack", "earliest2", 25, 1, SEED),
