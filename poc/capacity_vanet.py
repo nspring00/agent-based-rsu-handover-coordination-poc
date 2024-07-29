@@ -178,7 +178,7 @@ class VECStationAgent(simple.VECStationAgent):
         self.neighbors: List[VECStationAgent] = neighbors if neighbors else []
         self.vehicles: List[VehicleAgent] = []
         self.distance_threshold = 0.7
-        self.load_threshold = 0.7
+        self.load_threshold = 0.95
         self.vehicle_distance = None
 
     @property
@@ -191,18 +191,7 @@ class VECStationAgent(simple.VECStationAgent):
         return model.shared_load_info[neighbor_id]
 
     def step(self):
-
         self.strategy.handle_offloading(self)
-
-    def calculate_vehicle_handover_score(self, vehicle: VehicleAgent):
-        bearing_rad = self.calculate_vehicle_station_bearing(vehicle)
-        vehicle_angle_rad = math.radians(vehicle.angle)
-
-        angle_at_vehicle = bearing_rad - vehicle_angle_rad
-
-        ho_metric = (0.5 * math.cos(angle_at_vehicle) + 0.75) / 1.25 * distance(self.pos, vehicle.pos) / self.range
-
-        return ho_metric
 
     def calculate_vehicle_station_bearing(self, vehicle: VehicleAgent):
         # Calculate the difference in x and y coordinates
@@ -349,8 +338,6 @@ class VECModel(Model):
         self.report_total_successful_handovers = 0
         self.report_total_failed_handovers = 0
 
-        self.shared_load_info = {}
-
         def vehicle_count_collector(a: Agent):
             if isinstance(a, VECStationAgent):
                 return len(a.vehicles)
@@ -394,6 +381,7 @@ class VECModel(Model):
                                               self.vec_stations[i].range and station != self.vec_stations[i]]
 
         self.vehicle_id = 0
+        self.shared_load_info = {s.unique_id: 0 for s in self.vec_stations}
 
         self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in self.traces.items()]
         self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
@@ -546,9 +534,9 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
         if station.load < station.load_threshold * station.capacity:
             return
 
-        # Iterate through vehicles sorted by
-        for vehicle in sorted(station.vehicles, key=lambda x: station.calculate_vehicle_handover_score(x),
-                              reverse=True):
+        # Iterate through vehicles sorted by trajectory suitability ascending, selects the least suitable first
+        for vehicle in sorted(station.vehicles, key=lambda x: calculate_trajectory_suitability(station, x),
+                              reverse=False):
             # TODO move to global
             # TODO should also consider other stations
             if station.load < station.load_threshold * station.capacity:
