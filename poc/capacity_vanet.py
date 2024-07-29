@@ -703,8 +703,6 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
     def after_step(self, model: "VECModel"):
         # Check that each vehicle is in range of its station
         for vehicle in model.schedule.get_agents_by_type(VehicleAgent):
-            if not vehicle.station.is_vehicle_in_range(vehicle):
-                print("????????????")
             assert vehicle.station.is_vehicle_in_range(vehicle), f"Vehicle {vehicle.unique_id} is out of range"
 
 
@@ -735,13 +733,6 @@ class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
                 f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
             station.perform_handover(nearest_station, vehicle)
             self.previously_connected[vehicle.unique_id].append(station.unique_id)
-
-    def after_step(self, model: "VECModel"):
-        # Check that each vehicle is in range of its station
-        for vehicle in model.schedule.get_agents_by_type(VehicleAgent):
-            if not vehicle.station.is_vehicle_in_range(vehicle):
-                print("????????????")
-            # assert vehicle.station.is_vehicle_in_range(vehicle), f"Vehicle {vehicle.unique_id} is out of range"
 
 
 def main():
