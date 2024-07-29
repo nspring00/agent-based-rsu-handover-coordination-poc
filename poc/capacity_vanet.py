@@ -150,11 +150,12 @@ def calculate_station_suitability_with_vehicle(station: "VECStationAgent", stati
         return 0
 
     capacity_suitability = (station.capacity - station_load - vehicle.offloaded_load) / station.capacity
-    relative_capacity_suitability = max(10, (current_station.load / current_station.capacity) / (
-            station_load / station.capacity)) if station_load > 0 else 10
+    relative_capacity_suitability = (current_station.load / current_station.capacity) / (
+            station_load / station.capacity)
     trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
 
-    return 0.5 * capacity_suitability + 0.5 * trajectory_suitability + 0.3 * relative_capacity_suitability
+    # TODO work on suitability score
+    return capacity_suitability * trajectory_suitability * relative_capacity_suitability
 
 
 class VECStationAgent(simple.VECStationAgent):
@@ -523,7 +524,7 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
         # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
         for vehicle in list(station.vehicles):
             # Check if vehicle is exiting the station's range soon
-            if calculate_trajectory_suitability(station, vehicle) < 0.9:
+            if calculate_trajectory_suitability(station, vehicle) < 0.85:
                 continue
 
             logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {station.unique_id} range")
