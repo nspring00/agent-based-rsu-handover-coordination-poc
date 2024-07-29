@@ -189,6 +189,9 @@ class VECStationAgent(simple.VECStationAgent):
     def get_neighbor_load(self, neighbor_id):
         return self.neighbor_load[neighbor_id]
 
+    def increment_neighbor_load(self, neighbor_id, load):
+        self.neighbor_load[neighbor_id] += load
+
     def step(self):
         self.strategy.handle_offloading(self)
 
@@ -274,6 +277,7 @@ class VECStationAgent(simple.VECStationAgent):
         self.vehicles.remove(vehicle)
         to.vehicles.append(vehicle)
         vehicle.station = to
+        self.increment_neighbor_load(to.unique_id, vehicle.offloaded_load)
 
         # Stats
         # noinspection PyTypeChecker
@@ -592,7 +596,8 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
             # todo use load sharing info
             for suitability, vehicle in vehicles_with_suitability:
                 if suitability < 0.2 or (
-                        neighbor_station.load + vehicle.offloaded_load) / neighbor_station.capacity > station.load / station.capacity - 0.1:
+                        station.get_neighbor_load(
+                            neighbor_station.unique_id) + vehicle.offloaded_load) / neighbor_station.capacity > station.load / station.capacity - 0.1:
                     break
 
                 success = neighbor_station.request_handover(vehicle)
