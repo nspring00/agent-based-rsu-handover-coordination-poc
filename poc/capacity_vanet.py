@@ -286,6 +286,7 @@ class VECStationAgent(simple.VECStationAgent):
         to.vehicles.append(vehicle)
         vehicle.station = to
         self.increment_neighbor_load(to.unique_id, vehicle.offloaded_load)
+        to.increment_neighbor_load(self.unique_id, -vehicle.offloaded_load)
 
         # Stats
         # noinspection PyTypeChecker
@@ -876,6 +877,9 @@ def compare_load_sharing():
         ("ShareLoadFreq05", "default", 25, 5, SEED),
         ("ShareLoadFreq10", "default", 25, 10, SEED),
         ("2ShareLoadFreq01", "default2", 25, 1, SEED),
+        ("2ShareLoadFreq02", "default2", 25, 2, SEED),
+        ("2ShareLoadFreq03", "default2", 25, 3, SEED),
+        ("2ShareLoadFreq04", "default2", 25, 4, SEED),
         ("2ShareLoadFreq05", "default2", 25, 5, SEED),
         ("2ShareLoadFreq10", "default2", 25, 10, SEED),
         ("NearestRSU", "nearest", 25, 1, SEED),
