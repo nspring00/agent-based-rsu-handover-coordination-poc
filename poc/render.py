@@ -1,6 +1,7 @@
 import math
 
 import solara
+import capacity_vanet
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Circle, FancyArrow
 
@@ -150,13 +151,56 @@ def make_render_station_vehicle_count_chart(tail=0):
             assert station_id in df.columns
             df[station_id].plot(ax=ax, color=color)
 
-        if hasattr(model, "max_capacity"):
-            # Draw horizontal line for max capacity
-            ax.axhline(y=model.max_capacity, color='gray', linestyle='--')
-
         ax.set_title('Vehicle count at VEC stations')
         ax.set_xlabel('Step')
         ax.set_ylabel('Vehicle count')
         solara.FigureMatplotlib(fig)
 
     return render_station_vehicle_count_chart
+
+
+def make_render_station_load_chart(tail=0):
+    def render_station_load_chart(model: VECModel):
+        fig = Figure()
+        ax = fig.subplots()
+
+        data = model.datacollector.get_agent_vars_dataframe()['StationVehicleLoad']
+        filtered_counts = data.loc[data.index.get_level_values('AgentID') >= 10000]
+        df = filtered_counts.unstack(level="AgentID")
+        if tail > 0:
+            df = df.tail(tail)
+
+        for station_id, color in VEC_STATION_COLORS.items():
+            assert station_id in df.columns
+            df[station_id].plot(ax=ax, color=color)
+
+        if hasattr(model, "max_capacity"):
+            # Draw horizontal line for max capacity
+            ax.axhline(y=model.max_capacity, color='gray', linestyle='--')
+
+        ax.set_title('Load at VEC stations')
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Vehicle count')
+        solara.FigureMatplotlib(fig)
+
+    return render_station_load_chart
+
+
+def render_vehicle_loads(model: VECModel):
+    fig = Figure()
+    ax = fig.subplots()
+
+    data = model.datacollector.get_agent_vars_dataframe()['VehicleLoad']
+    filtered_loads = data.loc[data.index.get_level_values('AgentID') < 10000]
+
+    last_step_loads = filtered_loads.unstack(level="AgentID").tail(1).T
+    last_step_loads = last_step_loads.dropna()
+    vehicle_dict = {agent.unique_id: agent for agent in model.schedule.get_agents_by_type(capacity_vanet.VehicleAgent)}
+    colors = [VEC_STATION_COLORS[vehicle_dict[vehicle_id].station.unique_id] for vehicle_id in last_step_loads.index]
+    # last_step_loads.plot(kind='bar', ax=ax, color=colors)
+    ax.bar(last_step_loads.index, last_step_loads.values.flatten(), color=colors)
+
+    ax.set_title('Vehicle loads')
+    ax.set_xlabel('Vehicle ID')
+    ax.set_ylabel('Load')
+    solara.FigureMatplotlib(fig)

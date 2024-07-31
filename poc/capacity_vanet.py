@@ -85,7 +85,7 @@ class VehicleAgent(simple.VehicleAgent):
     # TODO fix inheritance stuff
     def __init__(self, unique_id, model: "VECModel", trace: Optional[vanetLoader.VehicleTrace]):
         super().__init__(unique_id, model, 0, [])
-        self.offloaded_load = 1
+        self.offloaded_load = 0
         self.invocation = 0
         self.trace_i = 0
         self.trace = trace
@@ -112,6 +112,8 @@ class VehicleAgent(simple.VehicleAgent):
         # print("Move to", self.pos, "with angle", self.angle)
         self.model.space.move_agent(self, self.pos)
 
+        self.offloaded_load = 0.5 + (1 - math.exp(-0.5 * self.count_nearby_vehicles()))  # TODO velocity influence
+
     def step(self):
         # TODO check there are no "holes" in timestamp list for all vehicles
         if self.invocation % STEPS_PER_SECOND == 0:
@@ -124,6 +126,15 @@ class VehicleAgent(simple.VehicleAgent):
         #     self.do_step(external_ts)
         # if external_ts > self.trace.last_ts:
         #     self.active = False
+
+    def count_nearby_vehicles(self) -> int:
+        count = 0
+        nearby_dist = 5
+        for agent in self.model.schedule.get_agents_by_type(VehicleAgent):
+            if agent != self and distance(agent.pos, self.pos) <= nearby_dist:
+                count += 1
+
+        return count
 
     @property
     def rsu_distance(self):
@@ -193,6 +204,10 @@ class VECStationAgent(simple.VECStationAgent):
     @property
     def load(self):
         return sum([vehicle.offloaded_load for vehicle in self.vehicles])
+
+    @property
+    def connected_vehicles(self):
+        return len(self.vehicles)
 
     def get_neighbor_load(self, neighbor_id):
         return self.neighbor_load[neighbor_id]
@@ -350,9 +365,19 @@ class VECModel(Model):
         self.report_total_successful_handovers = 0
         self.report_total_failed_handovers = 0
 
-        def vehicle_count_collector(a: Agent):
+        def station_vehicle_count_collector(a: Agent):
             if isinstance(a, VECStationAgent):
-                return len(a.vehicles)
+                return a.connected_vehicles
+            return None
+
+        def station_load_collector(a: Agent):
+            if isinstance(a, VECStationAgent):
+                return a.load
+            return None
+
+        def vehicle_load_collector(a: Agent):
+            if isinstance(a, VehicleAgent):
+                return a.offloaded_load
             return None
 
         self.datacollector = mesa.DataCollector(
@@ -365,7 +390,8 @@ class VECModel(Model):
                 "MinQoS": VECModel.report_min_qos,
                 "GiniLoad": VECModel.report_gini_load,
             },
-            agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": vehicle_count_collector}
+            agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": station_vehicle_count_collector,
+                             "StationVehicleLoad": station_load_collector, "VehicleLoad": vehicle_load_collector}
         )
 
         # station_positions = [
@@ -861,31 +887,31 @@ STRATEGIES_DICT = {
 def run_model(params):
     logging.disable(logging.CRITICAL)
 
-    model_name, strategy, max_capacity, load_update_interval, seed = params
+    model_name, strategy, max_capacity, load_update_interval, seed, _ = params
     strategy = STRATEGIES_DICT[strategy]()
     model = VECModel(strategy, max_capacity, load_update_interval, seed=seed)
     for _ in range(1000):
         model.step()
-    return print_model_metrics(model, model_name)
+    return params, print_model_metrics(model, model_name)
 
 
 def compare_load_sharing():
     start = time.time()
 
     strategies = [
-        ("ShareLoadFreq01", "default", 25, 1, SEED),
-        ("ShareLoadFreq05", "default", 25, 5, SEED),
-        ("ShareLoadFreq10", "default", 25, 10, SEED),
-        ("2ShareLoadFreq01", "default2", 25, 1, SEED),
-        ("2ShareLoadFreq02", "default2", 25, 2, SEED),
-        ("2ShareLoadFreq03", "default2", 25, 3, SEED),
-        ("2ShareLoadFreq04", "default2", 25, 4, SEED),
-        ("2ShareLoadFreq05", "default2", 25, 5, SEED),
-        ("2ShareLoadFreq10", "default2", 25, 10, SEED),
-        ("NearestRSU", "nearest", 25, 1, SEED),
-        ("EarliestHO", "earliest", 25, 1, SEED),
-        ("EarliestHONoBack", "earliest2", 25, 1, SEED),
-        ("LatestHO", "latest", 25, 1, SEED),
+        ("ShareLoadFreq01", "default", 25, 1, SEED, None),
+        ("ShareLoadFreq05", "default", 25, 5, SEED, None),
+        ("ShareLoadFreq10", "default", 25, 10, SEED, None),
+        ("2ShareLoadFreq01", "default2", 25, 1, SEED, None),
+        ("2ShareLoadFreq02", "default2", 25, 2, SEED, None),
+        ("2ShareLoadFreq03", "default2", 25, 3, SEED, None),
+        ("2ShareLoadFreq04", "default2", 25, 4, SEED, None),
+        ("2ShareLoadFreq05", "default2", 25, 5, SEED, None),
+        ("2ShareLoadFreq10", "default2", 25, 10, SEED, None),
+        ("NearestRSU", "nearest", 25, 1, SEED, 1388),
+        ("EarliestHO", "earliest", 25, 1, SEED, 1540),
+        ("EarliestHONoBack", "earliest2", 25, 1, SEED, 1494),
+        ("LatestHO", "latest", 25, 1, SEED, 1264),
     ]
 
     i = 0
@@ -903,13 +929,19 @@ def compare_load_sharing():
 
     print("Time elapsed:", int(time.time() - start), "s")
 
-    results.sort(key=lambda x: x[0])
+    for result in results:
+        assert_val = result[0][5]
+        if assert_val is not None:
+            # Assert HO count equals assertion value for regression tests
+            assert result[1][1] == assert_val, f"Assertion failed: {result[1][0]}"
+
+    results.sort(key=lambda x: x[1][0])
 
     # Write to CSV with header line
     with open("../results/results.csv", "w") as f:
         f.write("Model,Successful,Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd,GiniMean,GiniStd\n")
         for result in results:
-            f.write(",".join(map(str, result)) + "\n")
+            f.write(",".join(map(str, result[1])) + "\n")
 
     # "Regression test"
     # assert model1.report_total_successful_handovers == 2959
