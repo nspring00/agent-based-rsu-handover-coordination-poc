@@ -2,10 +2,20 @@ import math
 
 import solara
 import capacity_vanet
+import matplotlib.colors as mcolors
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Circle, FancyArrow
 
 from simple import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
+
+
+def lighten_color(color, amount=0.5):
+    try:
+        c = mcolors.cnames[color]
+    except KeyError:
+        c = color
+    c = mcolors.to_rgb(c)
+    return mcolors.to_hex([min(1, max(0, c[i] + (1 - c[i]) * amount)) for i in range(3)])
 
 
 def agent_portrayal(agent):
@@ -170,13 +180,17 @@ def make_render_station_load_chart(tail=0):
         if tail > 0:
             df = df.tail(tail)
 
+        # stations = {a.unique_id: a for a in model.schedule.get_agents_by_type(capacity_vanet.VECStationAgent)}
         for station_id, color in VEC_STATION_COLORS.items():
+            # station = stations[station_id]
             assert station_id in df.columns
             df[station_id].plot(ax=ax, color=color)
 
-        if hasattr(model, "max_capacity"):
-            # Draw horizontal line for max capacity
-            ax.axhline(y=model.max_capacity, color='gray', linestyle='--')
+            # if hasattr(station, "capacity"):
+            #     lightened_color = lighten_color(color)
+            #     ax.axhline(y=station.capacity, color=lightened_color, linestyle='--')
+
+        ax.axhline(y=1, color='gray', linestyle='--')
 
         ax.set_title('Load at VEC stations')
         ax.set_xlabel('Step')

@@ -3,6 +3,7 @@ import math
 import time
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
+from dataclasses import dataclass
 from functools import lru_cache
 from multiprocessing import Pool
 from typing import Optional, List
@@ -32,6 +33,21 @@ VEC_STATION_COLORS = {
     10003: "orange",
     10004: "green",
 }
+
+
+@dataclass
+class RsuConfig:
+    pos: tuple[int, int]
+    range: int
+    capacity: int
+
+
+SCENARIO_1_1 = [
+    RsuConfig((75, 50), 65, 25),  # red
+    RsuConfig((40, 120), 65, 25),  # blue
+    RsuConfig((115, 145), 65, 25),  # yellow
+    RsuConfig((160, 50), 65, 25),  # green
+]
 
 
 class RSAgentStrategy(ABC):
@@ -345,12 +361,12 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, rs_strategy: RSAgentStrategy, max_capacity=30, load_update_interval=1, start_at=0, **kwargs):
+    def __init__(self, rs_strategy: RSAgentStrategy, rsu_configs: List[RsuConfig], load_update_interval=1,
+                 start_at=0, **kwargs):
         # Seed is set via super().new()
         super().__init__()
         self.running = True
         self.rs_strategy = rs_strategy
-        self.max_capacity = max_capacity
         self.load_update_interval = load_update_interval
         self.traces = get_traces()
         self.width, self.height = vanetLoader.get_size()
@@ -372,7 +388,7 @@ class VECModel(Model):
 
         def station_load_collector(a: Agent):
             if isinstance(a, VECStationAgent):
-                return a.load
+                return a.load / a.capacity
             return None
 
         def vehicle_load_collector(a: Agent):
@@ -394,22 +410,10 @@ class VECModel(Model):
                              "StationVehicleLoad": station_load_collector, "VehicleLoad": vehicle_load_collector}
         )
 
-        # station_positions = [
-        #     (75, 50),
-        #     (50, 115),
-        #     (110, 140),
-        #     (140, 60)
-        # ]
-        # TODO check station positions
-        station_positions = [
-            (75, 50),  # red
-            (40, 120),  # blue
-            (115, 145),  # yellow
-            (160, 50)  # green
-        ]
         self.vec_stations = []
-        for i, pos in enumerate(station_positions, start=1):
-            station = VECStationAgent(10000 + i, self, self.rs_strategy, pos, 65, max_capacity)
+        for i, rsu_config in enumerate(rsu_configs, start=1):
+            station = VECStationAgent(10000 + i, self, self.rs_strategy, rsu_config.pos, rsu_config.range,
+                                      rsu_config.capacity)
             self.vec_stations.append(station)
             self.schedule.add(station)
 
@@ -887,9 +891,9 @@ STRATEGIES_DICT = {
 def run_model(params):
     logging.disable(logging.CRITICAL)
 
-    model_name, strategy, max_capacity, load_update_interval, seed, _ = params
+    model_name, strategy, load_update_interval, seed, _ = params
     strategy = STRATEGIES_DICT[strategy]()
-    model = VECModel(strategy, max_capacity, load_update_interval, seed=seed)
+    model = VECModel(strategy, SCENARIO_1_1, load_update_interval, seed=seed)
     for _ in range(1000):
         model.step()
     return params, print_model_metrics(model, model_name)
@@ -899,19 +903,19 @@ def compare_load_sharing():
     start = time.time()
 
     strategies = [
-        ("ShareLoadFreq01", "default", 25, 1, SEED, None),
-        ("ShareLoadFreq05", "default", 25, 5, SEED, None),
-        ("ShareLoadFreq10", "default", 25, 10, SEED, None),
-        ("2ShareLoadFreq01", "default2", 25, 1, SEED, None),
-        ("2ShareLoadFreq02", "default2", 25, 2, SEED, None),
-        ("2ShareLoadFreq03", "default2", 25, 3, SEED, None),
-        ("2ShareLoadFreq04", "default2", 25, 4, SEED, None),
-        ("2ShareLoadFreq05", "default2", 25, 5, SEED, None),
-        ("2ShareLoadFreq10", "default2", 25, 10, SEED, None),
-        ("NearestRSU", "nearest", 25, 1, SEED, 1388),
-        ("EarliestHO", "earliest", 25, 1, SEED, 1540),
-        ("EarliestHONoBack", "earliest2", 25, 1, SEED, 1494),
-        ("LatestHO", "latest", 25, 1, SEED, 1264),
+        ("ShareLoadFreq01", "default", 1, SEED, None),
+        ("ShareLoadFreq05", "default", 5, SEED, None),
+        ("ShareLoadFreq10", "default", 10, SEED, None),
+        ("2ShareLoadFreq01", "default2", 1, SEED, None),
+        ("2ShareLoadFreq02", "default2", 2, SEED, None),
+        ("2ShareLoadFreq03", "default2", 3, SEED, None),
+        ("2ShareLoadFreq04", "default2", 4, SEED, None),
+        ("2ShareLoadFreq05", "default2", 5, SEED, None),
+        ("2ShareLoadFreq10", "default2", 10, SEED, None),
+        ("NearestRSU", "nearest", 1, SEED, 1388),
+        ("EarliestHO", "earliest", 1, SEED, 1540),
+        ("EarliestHONoBack", "earliest2", 1, SEED, 1494),
+        ("LatestHO", "latest", 1, SEED, 1264),
     ]
 
     i = 0
@@ -930,7 +934,7 @@ def compare_load_sharing():
     print("Time elapsed:", int(time.time() - start), "s")
 
     for result in results:
-        assert_val = result[0][5]
+        assert_val = result[0][4]
         if assert_val is not None:
             # Assert HO count equals assertion value for regression tests
             assert result[1][1] == assert_val, f"Assertion failed: {result[1][0]}"
