@@ -222,6 +222,10 @@ class VECStationAgent(simple.VECStationAgent):
         return sum([vehicle.offloaded_load for vehicle in self.vehicles])
 
     @property
+    def utilization(self):
+        return self.load / self.capacity
+
+    @property
     def connected_vehicles(self):
         return len(self.vehicles)
 
@@ -640,6 +644,7 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
             self.attempt_handover_vehicle(station, vehicle, force=True)
 
     def handle_load_balancing_with_neighbors(self, station: VECStationAgent):
+        # TODO consider ranking of cross-product neighbors x vehicles
         for neighbor_station in station.neighbors:
             vehicles_with_suitability = [
                 (calculate_station_suitability_with_vehicle(neighbor_station,
@@ -648,11 +653,9 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
                 for v in station.vehicles]
             vehicles_with_suitability.sort(key=lambda x: x[0], reverse=True)
 
-            # todo use load sharing info
             for suitability, vehicle in vehicles_with_suitability:
-                if suitability < 0.2 or (
-                        station.get_neighbor_load(
-                            neighbor_station.unique_id) + vehicle.offloaded_load) / neighbor_station.capacity > station.load / station.capacity - 0.1:
+                neighbor_utilization = station.get_neighbor_load(neighbor_station.unique_id) / neighbor_station.capacity
+                if suitability < 0.2 or neighbor_utilization > station.utilization - 0.1:
                     break
 
                 success = neighbor_station.request_handover(vehicle)
