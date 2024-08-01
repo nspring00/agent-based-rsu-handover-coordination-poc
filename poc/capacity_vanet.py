@@ -263,71 +263,6 @@ class VECStationAgent(simple.VECStationAgent):
         # Calculate the angle in radians
         return math.atan2(dy, dx)
 
-    # def attempt_handover(self, vehicle: VehicleAgent, force=False) -> bool:
-    #
-    #     # current_score = calculate_station_suitability_with_vehicle(self, self.load, vehicle, self)
-    #     neighbors_with_score = [
-    #         (x, calculate_station_suitability_with_vehicle(x, self.get_neighbor_load(x.unique_id), vehicle))
-    #         for x in self.neighbors if
-    #         distance(x.pos, vehicle.pos) < x.range]
-    #     neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
-    #
-    #     if len(neighbors_with_score) == 0:
-    #         if force:
-    #             logging.warning(f"Vehicle {vehicle.unique_id} is leaving coverage area!!")
-    #         return False
-    #
-    #     logging.debug(f"Neighbors with score for vehicle {vehicle.unique_id}: %s", neighbors_with_score)
-    #
-    #     if neighbors_with_score[0][1] == 0 and not force:
-    #         logging.warning(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
-    #         return False
-    #
-    #     # if neighbors_with_score[0][1] < current_score and not force:
-    #     #     logging.info(
-    #     #         f"Vehicle {vehicle.unique_id} is not handed over to any neighbor due to no better suitability (no force)")
-    #     #     return False
-    #
-    #     # Loop through sorted neighbors and handover to the first one that accepts
-    #     # TODO this probably doesnt work anymore once we introduce latency
-    #     for neighbor, score in neighbors_with_score:
-    #         success = neighbor.request_handover(vehicle, force)
-    #         if success:
-    #             self.perform_handover(neighbor, vehicle)
-    #             logging.info(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
-    #
-    #             return True
-    #
-    #         else:
-    #             self.report_failed_handover()
-    #
-    #     return False
-
-    # TODO dont do it so dumb
-    # For now, take the best one without checking a response
-    # self.
-
-    # # Try to find a neighbor station to hand over the vehicle
-    # # Sort neighbors by distance to vehicle divided by range
-    # # This will prioritize neighbors that are closer to the vehicle and have a larger range
-    # neighbors = [(distance(x.pos, vehicle.pos) / x.range, x) for x in self.neighbors if x != self]
-    # sorted_neighbors = sorted(neighbors, key=lambda x: x[0])
-    #
-    # for ratio, neighbor in sorted_neighbors:
-    #     # If the ratio is greater than 1, the neighbor is too far away (and so are the rest)
-    #     if ratio > 1:
-    #         break
-    #
-    #     if neighbor.load < neighbor.capacity and is_moving_towards(vehicle.pos, vehicle.angle, neighbor.pos):
-    #         # Hand over the vehicle to the best neighbor
-    #         self.vehicles.remove(vehicle)
-    #         neighbor.vehicles.append(vehicle)
-    #         vehicle.station = neighbor
-    #         print(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
-    #         return
-    #
-    # # TODO What to do if handover is unavoidable (e.g. capacity is full)?
-
     def perform_handover(self, to: "VECStationAgent", vehicle: VehicleAgent):
         assert self != to, "Cannot hand over to the same station"
         self.vehicles.remove(vehicle)
@@ -365,14 +300,6 @@ class VECStationAgent(simple.VECStationAgent):
             # TODO: Implement more sophisticated check
 
         return True
-
-    def is_vehicle_exiting(self, vehicle: VehicleAgent):
-        # Predict if the vehicle will exit the station's range soon
-        # TODO create more precise logic, e.g. based on vehicle speed, distance and range
-        # return (distance(self.pos, vehicle.pos) > self.range * self.distance_threshold
-        #         and not is_moving_towards(vehicle.pos, vehicle.angle, self.pos))
-
-        return calculate_trajectory_suitability(self, vehicle) < 0.1
 
     def __repr__(self):
         return f"VECStation{self.unique_id}"
@@ -453,13 +380,7 @@ class VECModel(Model):
         self.unplaced_vehicles: List[vanetLoader.VehicleTrace] = [v for k, v in self.traces.items()]
         self.unplaced_vehicles.sort(key=lambda x: x.first_ts, reverse=True)
 
-        # ONLY DEBUG
-        # self.unplaced_vehicles = self.unplaced_vehicles[:1]
-        # self.unplaced_vehicles = list(filter(lambda x: x.id == 'VehicleFlowEastToNorth.0', self.unplaced_vehicles))
-
         self.to_remove: List[VehicleAgent] = []
-
-        self.vehicle = None
 
         self.step_second = 0
 
@@ -478,9 +399,6 @@ class VECModel(Model):
         station = min(self.vec_stations, key=lambda x: distance(x.pos, vehicle.pos))
         station.vehicles.append(vehicle)
         vehicle.station = station
-
-        if vehicle.unique_id == 265:
-            self.vehicle = vehicle
 
         return vehicle
 
@@ -578,43 +496,6 @@ def compute_qos(model: VECModel) -> List[float]:
         qos_list.append(qos)
 
     return qos_list
-
-
-# class DefaultOffloadingStrategy(RSAgentStrategy):
-#     def handle_offloading(self, station: VECStationAgent):
-#         # Only temporary for demonstration
-#         # self.vehicle_distance = distance(self.pos, self.model.vehicle.pos)
-#
-#         # Hand-over vehicles that are leaving anyways (todo remove in later iteration??)
-#         for vehicle in list(station.vehicles):
-#             # Check if vehicle is exiting the station's range soon
-#             if calculate_trajectory_suitability(station, vehicle) > 0.15:
-#                 continue
-#
-#             logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {station.unique_id} range")
-#             success = station.attempt_handover(vehicle)
-#
-#             if not success and calculate_trajectory_suitability(station, vehicle) < 0.05:
-#                 # Force handover
-#                 logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {station.unique_id}")
-#                 station.attempt_handover(vehicle, force=True)
-#
-#         # TODO move to global
-#         # TODO should also consider other stations
-#         if station.load < station.load_threshold * station.capacity:
-#             return
-#
-#         # Iterate through vehicles sorted by trajectory suitability ascending, selects the least suitable first
-#         for vehicle in sorted(station.vehicles, key=lambda x: calculate_trajectory_suitability(station, x),
-#                               reverse=False):
-#             # TODO move to global
-#             # TODO should also consider other stations
-#             if station.load < station.load_threshold * station.capacity:
-#                 return
-#
-#             logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
-#
-#             station.attempt_handover(vehicle, force=station.load > 0.95 * station.capacity)
 
 
 class DefaultOffloadingStrategy(RSAgentStrategy):
