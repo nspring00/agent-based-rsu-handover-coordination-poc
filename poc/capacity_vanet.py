@@ -599,7 +599,7 @@ def compute_qos(model: VECModel) -> List[float]:
 #             station.attempt_handover(vehicle, force=station.load > 0.95 * station.capacity)
 
 
-class DefaultOffloadingStrategy2(RSAgentStrategy):
+class DefaultOffloadingStrategy(RSAgentStrategy):
     def __init__(self, overload_threshold=0.95, imperative_ho_timer=10):
         self.overload_threshold = overload_threshold
         self.imperative_ho_timer = imperative_ho_timer
@@ -937,7 +937,7 @@ def print_model_metrics(model, model_name):
 
 STRATEGIES_DICT = {
     # "default": DefaultOffloadingStrategy,
-    "default2": DefaultOffloadingStrategy2,
+    "default": DefaultOffloadingStrategy,
     "nearest": NearestRSUStrategy,
     "earliest": EarliestPossibleHandoverStrategy,
     "earliest2": EarliestPossibleHandoverNoBackStrategy,
@@ -963,12 +963,12 @@ def compare_load_sharing():
         # ("ShareLoadFreq01", "default", 1, SEED, None),
         # ("ShareLoadFreq05", "default", 5, SEED, None),
         # ("ShareLoadFreq10", "default", 10, SEED, None),
-        ("2ShareLoadFreq01", "default2", 1, SEED, None),
-        ("2ShareLoadFreq02", "default2", 2, SEED, None),
-        ("2ShareLoadFreq03", "default2", 3, SEED, None),
-        ("2ShareLoadFreq04", "default2", 4, SEED, None),
-        ("2ShareLoadFreq05", "default2", 5, SEED, None),
-        ("2ShareLoadFreq10", "default2", 10, SEED, None),
+        ("2ShareLoadFreq01", "default", 1, SEED, None),
+        ("2ShareLoadFreq02", "default", 2, SEED, None),
+        ("2ShareLoadFreq03", "default", 3, SEED, None),
+        ("2ShareLoadFreq04", "default", 4, SEED, None),
+        ("2ShareLoadFreq05", "default", 5, SEED, None),
+        ("2ShareLoadFreq10", "default", 10, SEED, None),
         ("NearestRSU", "nearest", 1, SEED, 1388),
         ("EarliestHO", "earliest", 1, SEED, 1540),
         ("EarliestHONoBack", "earliest2", 1, SEED, 1494),
