@@ -62,6 +62,20 @@ class RSAgentStrategy(ABC):
         pass
 
 
+class VehicleLoadGenerator(ABC):
+    @abstractmethod
+    def compute_load(self, vehicle: "VehicleAgent"):
+        """
+        Compute the offloaded load of a vehicle.
+        """
+        pass
+
+
+class StaticVehicleLoadGenerator(VehicleLoadGenerator):
+    def compute_load(self, vehicle: "VehicleAgent"):
+        return 1
+
+
 @lru_cache(maxsize=1)
 def get_grid():
     return vanetLoader.get_grid()
@@ -100,12 +114,14 @@ class VehicleAgent(simple.VehicleAgent):
     """A vehicle agent that follows a list of waypoints and calculates its angle."""
 
     # TODO fix inheritance stuff
-    def __init__(self, unique_id, model: "VECModel", trace: Optional[vanetLoader.VehicleTrace]):
+    def __init__(self, unique_id, model: "VECModel", trace: Optional[vanetLoader.VehicleTrace],
+                 load_gen: VehicleLoadGenerator):
         super().__init__(unique_id, model, 0, [])
         self.offloaded_load = 0
         self.invocation = 0
         self.trace_i = 0
         self.trace = trace
+        self.load_gen = load_gen
         self.station: Optional["VECStationAgent"] = None
 
         self.active = True
@@ -129,7 +145,7 @@ class VehicleAgent(simple.VehicleAgent):
         # print("Move to", self.pos, "with angle", self.angle)
         self.model.space.move_agent(self, self.pos)
 
-        self.offloaded_load = 0.7 + (1 - math.exp(-0.5 * self.count_nearby_vehicles()))  # TODO velocity influence
+        self.offloaded_load = self.load_gen.compute_load(self)
 
     def step(self):
         # TODO check there are no "holes" in timestamp list for all vehicles
@@ -368,14 +384,15 @@ class VECStationAgent(simple.VECStationAgent):
 class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
-    def __init__(self, rs_strategy: RSAgentStrategy, rsu_configs: List[RsuConfig], load_update_interval=1,
-                 start_at=0, **kwargs):
+    def __init__(self, rs_strategy: RSAgentStrategy, rsu_configs: List[RsuConfig],
+                 vehicle_load_gen: VehicleLoadGenerator, load_update_interval=1, start_at=0, **kwargs):
         # Seed is set via super().new()
         super().__init__()
         self.running = True
         self.rs_strategy = rs_strategy
         self.load_update_interval = load_update_interval
         self.traces = get_traces()
+        self.vehicle_load_gen = vehicle_load_gen
         self.width, self.height = vanetLoader.get_size()
         assert self.width == 200
         assert self.height == 200
@@ -453,7 +470,7 @@ class VECModel(Model):
 
     def spawn_vehicle(self, trace_id, step) -> Optional[VehicleAgent]:
         self.vehicle_id += 1
-        vehicle = VehicleAgent(self.vehicle_id, self, self.traces[trace_id])
+        vehicle = VehicleAgent(self.vehicle_id, self, self.traces[trace_id], self.vehicle_load_gen)
         vehicle.ts = step // TIME_STEP_S
 
         self.schedule.add(vehicle)
@@ -836,6 +853,12 @@ class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
             self.previously_connected[vehicle.unique_id].append(station.unique_id)
 
 
+class DynamicVehicleLoadGenerator(VehicleLoadGenerator):
+    def compute_load(self, vehicle: "VehicleAgent"):
+        # TODO parameterize and add velocity
+        return 0.7 + (1 - math.exp(-0.5 * vehicle.count_nearby_vehicles()))
+
+
 def main():
     # Configuration for demonstration
     road_width = 200  # meters
@@ -955,7 +978,7 @@ def run_model(params):
 
     model_name, strategy, load_update_interval, seed, _ = params
     strategy = STRATEGIES_DICT[strategy]()
-    model = VECModel(strategy, SCENARIO_1_1, load_update_interval, seed=seed)
+    model = VECModel(strategy, SCENARIO_1_1, StaticVehicleLoadGenerator(), load_update_interval, seed=seed)
     for _ in range(1000):
         model.step()
     return params, print_model_metrics(model, model_name)

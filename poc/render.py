@@ -192,9 +192,9 @@ def make_render_station_load_chart(tail=0):
 
         ax.axhline(y=1, color='gray', linestyle='--')
 
-        ax.set_title('Load at VEC stations')
+        ax.set_title('Utilization of VEC stations')
         ax.set_xlabel('Step')
-        ax.set_ylabel('Vehicle count')
+        ax.set_ylabel('Utilization %')
         solara.FigureMatplotlib(fig)
 
     return render_station_load_chart
