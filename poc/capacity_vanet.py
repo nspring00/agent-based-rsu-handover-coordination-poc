@@ -1,3 +1,4 @@
+import itertools
 import logging
 import math
 import time
@@ -181,7 +182,7 @@ def calculate_trajectory_suitability(station: "VECStationAgent", vehicle: Vehicl
     return result
 
 
-def calculate_station_suitability_with_vehicle(station: "VECStationAgent", station_load: float, vehicle: VehicleAgent):
+def calculate_station_suitability(station: "VECStationAgent", station_load: float, vehicle: VehicleAgent):
     """
     Calculate the suitability of a station to receive a vehicle.
     The suitability is a value between 0 and 1, where 1 is the best suitability.
@@ -643,29 +644,33 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
             logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {station.unique_id}")
             self.attempt_handover_vehicle(station, vehicle, force=True)
 
-    def handle_load_balancing_with_neighbors(self, station: VECStationAgent):
-        # TODO consider ranking of cross-product neighbors x vehicles
-        for neighbor_station in station.neighbors:
-            vehicles_with_suitability = [
-                (calculate_station_suitability_with_vehicle(neighbor_station,
-                                                            station.get_neighbor_load(neighbor_station.unique_id), v),
-                 v)
-                for v in station.vehicles]
-            vehicles_with_suitability.sort(key=lambda x: x[0], reverse=True)
+    def handle_load_balancing_with_neighbors(self, current: VECStationAgent):
+        stations_with_vehicles = itertools.product(current.neighbors, current.vehicles)
+        already_gone = set()
 
-            for suitability, vehicle in vehicles_with_suitability:
-                neighbor_utilization = station.get_neighbor_load(neighbor_station.unique_id) / neighbor_station.capacity
-                if suitability < 0.2 or neighbor_utilization > station.utilization - 0.1:
-                    break
+        stations_vehicles_suitability = [
+            (calculate_station_suitability(s, current.get_neighbor_load(s.unique_id), v), s, v)
+            for s, v in stations_with_vehicles]
+        stations_vehicles_suitability.sort(key=lambda x: x[0], reverse=True)
 
-                success = neighbor_station.request_handover(vehicle)
-                if not success:
-                    break
+        for suitability, neighbor_station, vehicle in stations_vehicles_suitability:
+            if vehicle in already_gone:
+                continue
 
-                logging.info(
-                    f"Vehicle {vehicle.unique_id} is being handed over to VEC station {neighbor_station.unique_id} to balance load")
-                station.perform_handover(neighbor_station, vehicle)
-                self.next_ho_timer[vehicle.unique_id] = self.imperative_ho_timer
+            neighbor_utilization = (current.get_neighbor_load(neighbor_station.unique_id) +
+                                    vehicle.offloaded_load) / neighbor_station.capacity
+            if suitability < 0.2 or neighbor_utilization > current.utilization - 0.1:
+                break
+
+            success = neighbor_station.request_handover(vehicle)
+            if not success:
+                continue
+
+            logging.info(
+                f"Vehicle {vehicle.unique_id} is being handed over to VEC station {neighbor_station.unique_id} to balance load")
+            current.perform_handover(neighbor_station, vehicle)
+            self.next_ho_timer[vehicle.unique_id] = self.imperative_ho_timer
+            already_gone.add(vehicle)
 
     def manage_overload(self, station: VECStationAgent):
         # Iterate through vehicles sorted by trajectory suitability ascending, selects the least suitable first
@@ -686,7 +691,7 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
     def attempt_handover_vehicle(self, station: VECStationAgent, vehicle: VehicleAgent, force=False) -> bool:
 
         neighbors_with_score = [
-            (x, calculate_station_suitability_with_vehicle(x, station.get_neighbor_load(x.unique_id), vehicle))
+            (x, calculate_station_suitability(x, station.get_neighbor_load(x.unique_id), vehicle))
             for x in station.neighbors if
             distance(x.pos, vehicle.pos) < x.range]
         neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
