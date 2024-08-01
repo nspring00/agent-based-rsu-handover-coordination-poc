@@ -128,7 +128,7 @@ class VehicleAgent(simple.VehicleAgent):
         # print("Move to", self.pos, "with angle", self.angle)
         self.model.space.move_agent(self, self.pos)
 
-        self.offloaded_load = 0.5 + (1 - math.exp(-0.5 * self.count_nearby_vehicles()))  # TODO velocity influence
+        self.offloaded_load = 0.7 + (1 - math.exp(-0.5 * self.count_nearby_vehicles()))  # TODO velocity influence
 
     def step(self):
         # TODO check there are no "holes" in timestamp list for all vehicles
@@ -278,11 +278,7 @@ class VECStationAgent(simple.VECStationAgent):
                 return True
 
             else:
-                # Stats
-                # noinspection PyTypeChecker
-                model: VECModel = self.model
-                model.report_failed_handovers += 1
-                model.report_total_failed_handovers += 1
+                self.report_failed_handover()
 
         return False
 
@@ -324,6 +320,12 @@ class VECStationAgent(simple.VECStationAgent):
         model: VECModel = self.model
         model.report_successful_handovers += 1
         model.report_total_successful_handovers += 1
+
+    def report_failed_handover(self):
+        # noinspection PyTypeChecker
+        model: VECModel = self.model
+        model.report_failed_handovers += 1
+        model.report_total_failed_handovers += 1
 
     def request_handover(self, vehicle: VehicleAgent, force=False) -> bool:
         """
@@ -594,10 +596,15 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
 
 
 class DefaultOffloadingStrategy2(RSAgentStrategy):
-    def __init__(self, overload_threshold=0.95):
+    def __init__(self, overload_threshold=0.95, imperative_ho_timer=10):
         self.overload_threshold = overload_threshold
+        self.imperative_ho_timer = imperative_ho_timer
+        self.next_ho_timer = defaultdict(int)
 
     def handle_offloading(self, station: VECStationAgent):
+
+        for vehicle in station.vehicles:
+            self.next_ho_timer[vehicle.unique_id] -= 1
 
         # Step 1: Hand-over vehicles that are leaving anyway
         for vehicle in list(station.vehicles):
@@ -616,12 +623,14 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
 
     def handle_vehicle_leaving_range(self, station, vehicle, trajectory_suitability):
         logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {station.unique_id} range")
-        success = station.attempt_handover(vehicle)
+        success = self.attempt_handover_vehicle(station, vehicle)
+
+        # TODO do in one??
 
         if not success and trajectory_suitability < 0.05:
             # Force handover
             logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {station.unique_id}")
-            station.attempt_handover(vehicle, force=True)
+            self.attempt_handover_vehicle(station, vehicle, force=True)
 
     def handle_load_balancing_with_neighbors(self, station: VECStationAgent):
         for neighbor_station in station.neighbors:
@@ -658,7 +667,40 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
 
             logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
 
-            station.attempt_handover(vehicle, force=station.load > 0.95 * station.capacity)
+            self.attempt_handover_vehicle(station, vehicle, force=station.load > 0.95 * station.capacity)
+
+    def attempt_handover_vehicle(self, station: VECStationAgent, vehicle: VehicleAgent, force=False) -> bool:
+
+        neighbors_with_score = [
+            (x, calculate_station_suitability_with_vehicle(x, station.get_neighbor_load(x.unique_id), vehicle))
+            for x in station.neighbors if
+            distance(x.pos, vehicle.pos) < x.range]
+        neighbors_with_score.sort(key=lambda x: x[1], reverse=True)
+
+        if len(neighbors_with_score) == 0:
+            if force:
+                logging.warning(f"Vehicle {vehicle.unique_id} is leaving coverage area!!")
+            return False
+
+        logging.debug(f"Neighbors with score for vehicle {vehicle.unique_id}: %s", neighbors_with_score)
+
+        if neighbors_with_score[0][1] == 0 and not force:
+            logging.warning(f"Vehicle {vehicle.unique_id} cannot be handed over to any neighbor (no force)")
+            return False
+
+        # Loop through sorted neighbors and handover to the first one that accepts
+        for neighbor, score in neighbors_with_score:
+            success = neighbor.request_handover(vehicle, force)
+            if not success:
+                station.report_failed_handover()
+                continue
+
+            station.perform_handover(neighbor, vehicle)
+            logging.info(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+
+            return True
+
+        return False
 
 
 class NearestRSUStrategy(RSAgentStrategy):
