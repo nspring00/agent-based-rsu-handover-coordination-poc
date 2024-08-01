@@ -603,11 +603,14 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
 
     def handle_offloading(self, station: VECStationAgent):
 
+        # Step 0: Decrement HO timers
         for vehicle in station.vehicles:
             self.next_ho_timer[vehicle.unique_id] -= 1
 
         # Step 1: Hand-over vehicles that are leaving anyway
         for vehicle in list(station.vehicles):
+            if self.next_ho_timer[vehicle.unique_id] > 0:
+                continue
             trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
             if trajectory_suitability < 0.15:
                 self.handle_vehicle_leaving_range(station, vehicle, trajectory_suitability)
@@ -616,18 +619,22 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
         self.handle_load_balancing_with_neighbors(station)
 
         # Step 3: Manage overload by prioritizing vehicles for handover
-        # TODO move to global
-        # TODO should also consider other stations
         if station.load > station.load_threshold * station.capacity:
             self.manage_overload(station)
 
     def handle_vehicle_leaving_range(self, station, vehicle, trajectory_suitability):
+        """
+        Handle vehicles that are leaving the station's range.
+        First, try to perform alternative HO to the most suitable and available station.
+        If not possible, perform imperative HO if the vehicle is about to leave the range.
+        """
+
         logging.debug(f"Vehicle {vehicle.unique_id} is leaving the station {station.unique_id} range")
         success = self.attempt_handover_vehicle(station, vehicle)
 
         # TODO do in one??
 
-        if not success and trajectory_suitability < 0.05:
+        if not success and trajectory_suitability < 0.05:  # TODO parameterize
             # Force handover
             logging.info(f"Vehicle {vehicle.unique_id} is being forced to leave the station {station.unique_id}")
             self.attempt_handover_vehicle(station, vehicle, force=True)
@@ -655,11 +662,15 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
                 logging.info(
                     f"Vehicle {vehicle.unique_id} is being handed over to VEC station {neighbor_station.unique_id} to balance load")
                 station.perform_handover(neighbor_station, vehicle)
+                self.next_ho_timer[vehicle.unique_id] = self.imperative_ho_timer
 
     def manage_overload(self, station: VECStationAgent):
         # Iterate through vehicles sorted by trajectory suitability ascending, selects the least suitable first
         for vehicle in sorted(station.vehicles, key=lambda x: calculate_trajectory_suitability(station, x),
                               reverse=False):
+            if self.next_ho_timer[vehicle.unique_id] > 0:
+                continue
+
             # TODO move to global
             # TODO should also consider other stations
             if station.load < station.load_threshold * station.capacity:
@@ -697,6 +708,7 @@ class DefaultOffloadingStrategy2(RSAgentStrategy):
 
             station.perform_handover(neighbor, vehicle)
             logging.info(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
+            self.next_ho_timer[vehicle.unique_id] = self.imperative_ho_timer
 
             return True
 
