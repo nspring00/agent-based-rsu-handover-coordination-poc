@@ -356,6 +356,7 @@ class VECModel(Model):
                 "AvgQoS": VECModel.report_avg_qos,
                 "MinQoS": VECModel.report_min_qos,
                 "GiniLoad": VECModel.report_gini_load,
+                "VehicleCount": VECModel.report_vehicle_count,
             },
             agent_reporters={"Distances": "vehicle_distance", "StationVehicleCount": station_vehicle_count_collector,
                              "StationVehicleLoad": station_load_collector, "VehicleLoad": vehicle_load_collector}
@@ -456,6 +457,9 @@ class VECModel(Model):
     def report_gini_load(self):
         loads = [station.load for station in self.vec_stations]
         return compute_gini(loads)
+
+    def report_vehicle_count(self):
+        return len(self.agents) - len(self.vec_stations)
 
 
 def compute_gini(array):
@@ -870,11 +874,17 @@ def run_model(params):
 
 
 # Define parameter ranges for DefaultOffloadingStrategy
-overload_threshold_values = [0.85, 0.90, 0.95, 1.00]
-leaving_threshold_values = [0.03, 0.05, 0.07]
-imp_ho_timer_values = [5, 10, 15]
-alt_ho_hysteresis_values = [0.05, 0.1, 0.15]
+# overload_threshold_values = [0.9]
+overload_threshold_values = [0.4, 0.9]
+leaving_threshold_values = [0, 0.05, 0.1]
+imp_ho_timer_values = [0, 5, 10]
+alt_ho_hysteresis_values = [0, 0.05, 0.1]
 alt_suitability_min_values = [0.15, 0.2, 0.25]
+
+
+# imp_ho_timer_values = [15]
+# alt_ho_hysteresis_values = [0.15]
+# alt_suitability_min_values = [0.15]
 
 
 def generate_default_strategy_configs():
@@ -901,6 +911,15 @@ def generate_default_strategy_configs():
     return strategies
 
 
+BEST_DEFAULT_CONFIG = {
+    'overload_threshold': 0.9,
+    'leaving_threshold': 0,
+    'imp_ho_timer': 5,
+    'alt_ho_hysteresis': 0.05,
+    'alt_suitability_min': 0.2,
+}
+
+
 def compare_load_sharing():
     start = time.time()
 
@@ -923,11 +942,21 @@ def compare_load_sharing():
     default_strategies = generate_default_strategy_configs()
 
     strategies = [
-                     ("NearestRSU", "nearest", 1, SEED, 1388, None),
-                     ("EarliestHO", "earliest", 1, SEED, 1540, None),
-                     ("EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
-                     ("LatestHO", "latest", 1, SEED, 1264, None),
-                 ] + default_strategies
+        ("DefaultShare01", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare02", "default", 2, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare03", "default", 3, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare04", "default", 4, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare05", "default", 5, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare10", "default", 10, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare15", "default", 15, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare20", "default", 20, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare25", "default", 25, SEED, None, BEST_DEFAULT_CONFIG),
+        ("DefaultShare30", "default", 30, SEED, None, BEST_DEFAULT_CONFIG),
+        ("NearestRSU", "nearest", 1, SEED, 1388, None),
+        ("EarliestHO", "earliest", 1, SEED, 1540, None),
+        ("EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
+        ("LatestHO", "latest", 1, SEED, 1264, None),
+    ]  # + default_strategies
 
     i = 0
     results = []
@@ -936,7 +965,7 @@ def compare_load_sharing():
         results.append(run_model(strategies[0]))
     else:
         print("Start multi-threaded execution")
-        with Pool(None) as p:
+        with Pool(7) as p:
             for res in p.imap_unordered(run_model, strategies):
                 i += 1
                 print(i, "/", len(strategies))
@@ -952,9 +981,24 @@ def compare_load_sharing():
 
     results.sort(key=lambda x: x[1][0])
 
+    min_handovers = min(results, key=lambda x: x[1][1])[1][1]
+    max_qos_mean = max(results, key=lambda x: x[1][3])[1][3]
+    max_qos_min = max(results, key=lambda x: x[1][5])[1][5]
+    min_gini = min(results, key=lambda x: x[1][7])[1][7]
+
+    # Compute score of each entry by multiplying the % it achieves of the best score of each
+    for _, result in results:
+        # Compute the combined score for each entry; consider the difference between min and max values; should be <= 1
+        ho_score = min_handovers / result[1]
+        qos_mean_score = result[3] / max_qos_mean
+        qos_min_score = result[5] / max_qos_min
+        gini_score = min_gini / result[7]
+        result.append(ho_score + qos_mean_score + qos_min_score + gini_score)
+        result.append(ho_score * qos_mean_score * qos_min_score * gini_score)
+
     # Write to CSV with header line
     with open("../results/results.csv", "w") as f:
-        f.write("Model,Successful,Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd,GiniMean,GiniStd\n")
+        f.write("Model,Successful,Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd,GiniMean,GiniStd,EvalSum,EvalProd\n")
         for result in results:
             f.write(",".join(map(str, result[1])) + "\n")
 
