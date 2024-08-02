@@ -855,32 +855,79 @@ STRATEGIES_DICT = {
 def run_model(params):
     logging.disable(logging.CRITICAL)
 
-    model_name, strategy, load_update_interval, seed, _ = params
-    strategy = STRATEGIES_DICT[strategy]()
+    model_name, strategy_key, load_update_interval, seed, _, config = params
+    strategy_class = STRATEGIES_DICT[strategy_key]
+
+    if strategy_key == 'default':
+        strategy = strategy_class(**config)
+    else:
+        strategy = strategy_class()
+
     model = VECModel(strategy, SCENARIO_1_1, StaticVehicleLoadGenerator(), load_update_interval, seed=seed)
     for _ in range(1000):
         model.step()
     return params, print_model_metrics(model, model_name)
 
 
+# Define parameter ranges for DefaultOffloadingStrategy
+overload_threshold_values = [0.85, 0.90, 0.95, 1.00]
+leaving_threshold_values = [0.03, 0.05, 0.07]
+imp_ho_timer_values = [5, 10, 15]
+alt_ho_hysteresis_values = [0.05, 0.1, 0.15]
+alt_suitability_min_values = [0.15, 0.2, 0.25]
+
+
+def generate_default_strategy_configs():
+    param_grid = itertools.product(
+        overload_threshold_values,
+        leaving_threshold_values,
+        imp_ho_timer_values,
+        alt_ho_hysteresis_values,
+        alt_suitability_min_values
+    )
+
+    strategies = []
+    for params in param_grid:
+        config = {
+            'overload_threshold': params[0],
+            'leaving_threshold': params[1],
+            'imp_ho_timer': params[2],
+            'alt_ho_hysteresis': params[3],
+            'alt_suitability_min': params[4]
+        }
+        name = f"Default_ovl{params[0]}_lvg{params[1]}_ho{params[2]}_hst{params[3]}_suit{params[4]}"
+        strategies.append((name, 'default', 1, SEED, None, config))
+
+    return strategies
+
+
 def compare_load_sharing():
     start = time.time()
 
+    # strategies = [
+    #     # ("ShareLoadFreq01", "default", 1, SEED, None),
+    #     # ("ShareLoadFreq05", "default", 5, SEED, None),
+    #     # ("ShareLoadFreq10", "default", 10, SEED, None),
+    #     ("2ShareLoadFreq01", "default", 1, SEED, None),
+    #     ("2ShareLoadFreq02", "default", 2, SEED, None),
+    #     ("2ShareLoadFreq03", "default", 3, SEED, None),
+    #     ("2ShareLoadFreq04", "default", 4, SEED, None),
+    #     ("2ShareLoadFreq05", "default", 5, SEED, None),
+    #     ("2ShareLoadFreq10", "default", 10, SEED, None),
+    #     ("NearestRSU", "nearest", 1, SEED, 1388),
+    #     ("EarliestHO", "earliest", 1, SEED, 1540),
+    #     ("EarliestHONoBack", "earliest2", 1, SEED, 1494),
+    #     ("LatestHO", "latest", 1, SEED, 1264),
+    # ]
+
+    default_strategies = generate_default_strategy_configs()
+
     strategies = [
-        # ("ShareLoadFreq01", "default", 1, SEED, None),
-        # ("ShareLoadFreq05", "default", 5, SEED, None),
-        # ("ShareLoadFreq10", "default", 10, SEED, None),
-        ("2ShareLoadFreq01", "default", 1, SEED, None),
-        ("2ShareLoadFreq02", "default", 2, SEED, None),
-        ("2ShareLoadFreq03", "default", 3, SEED, None),
-        ("2ShareLoadFreq04", "default", 4, SEED, None),
-        ("2ShareLoadFreq05", "default", 5, SEED, None),
-        ("2ShareLoadFreq10", "default", 10, SEED, None),
-        ("NearestRSU", "nearest", 1, SEED, 1388),
-        ("EarliestHO", "earliest", 1, SEED, 1540),
-        ("EarliestHONoBack", "earliest2", 1, SEED, 1494),
-        ("LatestHO", "latest", 1, SEED, 1264),
-    ]
+                     ("NearestRSU", "nearest", 1, SEED, 1388, None),
+                     ("EarliestHO", "earliest", 1, SEED, 1540, None),
+                     ("EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
+                     ("LatestHO", "latest", 1, SEED, 1264, None),
+                 ] + default_strategies
 
     i = 0
     results = []
