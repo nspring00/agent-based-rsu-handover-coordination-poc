@@ -17,6 +17,7 @@ from mesa.space import ContinuousSpace
 
 import VanetTraceLoader as vanetLoader
 import simple as simple
+import units
 from scheduler import RandomActivationBySortedType
 
 SEED = 42
@@ -44,10 +45,10 @@ class RsuConfig:
 
 
 SCENARIO_1_1 = [
-    RsuConfig((75, 50), 65, 25),  # red
-    RsuConfig((40, 120), 65, 25),  # blue
-    RsuConfig((115, 145), 65, 25),  # yellow
-    RsuConfig((160, 50), 65, 25),  # green
+    RsuConfig((75, 50), 65, 38.75 * units.TERA),  # red
+    RsuConfig((40, 120), 65, 38.75 * units.TERA),  # blue
+    RsuConfig((115, 145), 65, 38.75 * units.TERA),  # yellow
+    RsuConfig((160, 50), 65, 38.75 * units.TERA),  # green
 ]
 
 
@@ -64,7 +65,7 @@ class RSAgentStrategy(ABC):
 
 class VehicleLoadGenerator(ABC):
     @abstractmethod
-    def compute_load(self, vehicle: "VehicleAgent"):
+    def compute_offloaded_load(self, vehicle: "VehicleAgent"):
         """
         Compute the offloaded load of a vehicle.
         """
@@ -72,7 +73,7 @@ class VehicleLoadGenerator(ABC):
 
 
 class StaticVehicleLoadGenerator(VehicleLoadGenerator):
-    def compute_load(self, vehicle: "VehicleAgent"):
+    def compute_offloaded_load(self, vehicle: "VehicleAgent"):
         return 1
 
 
@@ -145,7 +146,7 @@ class VehicleAgent(simple.VehicleAgent):
         # print("Move to", self.pos, "with angle", self.angle)
         self.model.space.move_agent(self, self.pos)
 
-        self.offloaded_load = self.load_gen.compute_load(self)
+        self.offloaded_load = self.load_gen.compute_offloaded_load(self)
 
     def step(self):
         # TODO check there are no "holes" in timestamp list for all vehicles
@@ -737,9 +738,19 @@ class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
 
 
 class DynamicVehicleLoadGenerator(VehicleLoadGenerator):
-    def compute_load(self, vehicle: "VehicleAgent"):
-        # TODO parameterize and add velocity
-        return 0.7 + (1 - math.exp(-0.5 * vehicle.count_nearby_vehicles()))
+    local_computation = 0.91 * units.TERA
+    load_min = 1.9 * units.TERA
+    load_max = 3 * units.TERA
+
+    def __init__(self, seed=42):
+        self.load_per_vehicle = {}
+        self.rng = np.random.default_rng(seed)
+
+    def compute_offloaded_load(self, vehicle: "VehicleAgent"):
+        if vehicle.unique_id not in self.load_per_vehicle:
+            self.load_per_vehicle[vehicle.unique_id] = self.rng.uniform(self.load_min, self.load_max)
+
+        return self.load_per_vehicle[vehicle.unique_id] - self.local_computation
 
 
 def main():
@@ -867,7 +878,7 @@ def run_model(params):
     else:
         strategy = strategy_class()
 
-    model = VECModel(strategy, SCENARIO_1_1, StaticVehicleLoadGenerator(), load_update_interval, seed=seed)
+    model = VECModel(strategy, SCENARIO_1_1, DynamicVehicleLoadGenerator(seed=seed), load_update_interval, seed=seed)
     for _ in range(1000):
         model.step()
     return params, print_model_metrics(model, model_name)
