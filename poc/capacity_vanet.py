@@ -538,8 +538,8 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
 
             # Based on trajectory suitability, decide if the vehicle should be handed over
             trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
-            if trajectory_suitability < 3 * self.leaving_threshold:
-                self.attempt_handover_vehicle(station, vehicle, force=trajectory_suitability < self.leaving_threshold)
+            if trajectory_suitability <= self.leaving_threshold:
+                self.attempt_handover_vehicle(station, vehicle, force=not station.is_vehicle_in_range(vehicle))
 
     def handle_load_balancing_with_neighbors(self, current: VECStationAgent):
         stations_with_vehicles = itertools.product(current.neighbors, current.vehicles)
