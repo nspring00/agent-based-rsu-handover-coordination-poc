@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import lru_cache
 from multiprocessing import Pool
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import mesa
 import numpy as np
@@ -19,6 +19,7 @@ import VanetTraceLoader as vanetLoader
 import simple as simple
 import units
 from scheduler import RandomActivationBySortedType
+from VanetTraceLoader import VehicleTrace
 
 SEED = 42
 
@@ -81,11 +82,6 @@ class StaticVehicleLoadGenerator(VehicleLoadGenerator):
 @lru_cache(maxsize=1)
 def get_grid():
     return vanetLoader.get_grid()
-
-
-@lru_cache(maxsize=1)
-def get_traces():
-    return vanetLoader.get_traces()
 
 
 def distance(pos1, pos2):
@@ -314,13 +310,14 @@ class VECModel(Model):
     """A model with a single vehicle following waypoints on a rectangular road layout."""
 
     def __init__(self, rs_strategy: RSAgentStrategy, rsu_configs: List[RsuConfig],
-                 vehicle_load_gen: VehicleLoadGenerator, load_update_interval=1, start_at=0, **kwargs):
+                 vehicle_load_gen: VehicleLoadGenerator, traces: Dict[str, VehicleTrace], load_update_interval=1,
+                 start_at=0, **kwargs):
         # Seed is set via super().new()
         super().__init__()
         self.running = True
         self.rs_strategy = rs_strategy
         self.load_update_interval = load_update_interval
-        self.traces = get_traces()
+        self.traces = traces
         self.vehicle_load_gen = vehicle_load_gen
         self.width, self.height = vanetLoader.get_size()
         assert self.width == 200
@@ -414,7 +411,6 @@ class VECModel(Model):
             v.remove()
 
         assert len(self.to_remove) == len(self.agents) - 4, "Agent count mismatch"  # 4 is number of stations
-        self.step_second += 1
 
         while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_second:
             v_trace = self.unplaced_vehicles.pop()
@@ -439,6 +435,8 @@ class VECModel(Model):
         # Reset per-step statistics
         self.report_successful_handovers = 0
         self.report_failed_handovers = 0
+
+        self.step_second += 1
 
     def update_shared_load_info(self):
         for station in self.vec_stations:
@@ -756,7 +754,7 @@ def main():
     vehicle_speed = VEHICLE_SPEED_FAST_MS
 
     # Initialize and run the model
-    model = VECModel(road_width, road_height, vehicle_speed)
+    model = VECModel(road_width, road_height, vehicle_speed, None)
     output = []
 
     vehicle_positions = []  # For recording vehicle positions
@@ -874,7 +872,9 @@ def run_model(params):
     else:
         strategy = strategy_class()
 
-    model = VECModel(strategy, SCENARIO_1_1, DynamicVehicleLoadGenerator(seed=seed), load_update_interval, seed=seed)
+    model = VECModel(strategy, SCENARIO_1_1, DynamicVehicleLoadGenerator(seed=seed),
+                     vanetLoader.get_traces(morning=True, eval=True), load_update_interval=load_update_interval,
+                     seed=seed)
     for _ in range(1000):
         model.step()
     return params, print_model_metrics(model, model_name)
