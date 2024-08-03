@@ -11,7 +11,8 @@ from data_test import MIN_X, MAX_X, MIN_Y, MAX_Y
 import numpy as np
 import pandas as pd
 
-DATASET_PATH = '../datasets/vanet-trace-creteil-20130924-0700-0900/vanet-trace-creteil-20130924-0700-0900.csv'
+DATASET_MORNING_PATH = '../datasets/vanet-trace-creteil-20130924-0700-0900/vanet-trace-creteil-20130924-0700-0900.csv'
+DATASET_EVENING_PATH = '../datasets/vanet-trace-creteil-20130924-1700-1900/vanet-trace-creteil-20130924-1700-1900.csv'
 
 
 @dataclass
@@ -23,9 +24,24 @@ class VehicleTrace:
     trace: pd.DataFrame  # ts, x, y, angle, speed, lane
 
 
-def map_trace(df: pd.DataFrame) -> Dict[str, VehicleTrace]:
+def map_trace(df: pd.DataFrame, eval=True) -> Dict[str, VehicleTrace]:
+    """
+    Args:
+        df: DataFrame containing the vehicle traces.
+        eval: If True, load only the evaluation traces, otherwise load the full traces.
+    """
+
     df = df.dropna(subset=['vehicle_x', 'vehicle_y'])
     df['timestep_time'] = df['timestep_time'].astype(int)
+
+    if eval:
+        # Timestep resembles seconds since start, so we can filter out the evaluation traces by checking if the timestep
+        # is between 7:15 AM and 8:45 AM or 5:15 PM and 6:45 PM
+        start_ts = 60 * 15  # 15 min
+        end_ts = 60 * 105  # 105 min
+        df = df[(df['timestep_time'] >= start_ts) & (df['timestep_time'] <= end_ts)]
+        # Normalize the timestep to start from 0
+        df['timestep_time'] = df['timestep_time'] - start_ts
 
     df = df[(df['vehicle_x'] >= MIN_X) & (df['vehicle_x'] <= MAX_X) & (df['vehicle_y'] >= MIN_Y) & (
             df['vehicle_y'] <= MAX_Y)]
@@ -56,12 +72,25 @@ def get_size() -> Tuple[int, int]:
     return MAX_X - MIN_X + 1, MAX_Y - MIN_Y + 1
 
 
-def get_traces() -> Dict[str, VehicleTrace]:
-    if not Path('trace.npy').exists():
-        trace = map_trace(pd.read_csv(DATASET_PATH, sep=';'))
-        np.save('trace.npy', trace)
+def get_traces(morning=True, eval=True) -> Dict[str, VehicleTrace]:
+    """
+    Args:
+        morning: If True, load the traces for the morning period, otherwise load the traces for the evening period.
+        eval: If True, load only the evaluation traces, otherwise load the full traces.
+    """
+
+    filename = "../datasets/creteil_morning" if morning else "../datasets/creteil_evening"
+    if eval:
+        filename += "_eval"
+    filename += "_trace.npy"
+
+    dataset_path = DATASET_MORNING_PATH if morning else DATASET_EVENING_PATH
+
+    if not Path(filename).exists():
+        trace = map_trace(pd.read_csv(dataset_path, sep=';'), eval=eval)
+        np.save(filename, trace)
         return trace
-    return np.load('trace.npy', allow_pickle=True).item()
+    return np.load(filename, allow_pickle=True).item()
 
 
 def map_grid(df):
@@ -84,11 +113,12 @@ def map_grid(df):
 
 
 def get_grid():
-    if not Path('grid.npy').exists():
-        grid = map_grid(pd.read_csv(DATASET_PATH, sep=';'))
-        np.save('grid.npy', grid)
+    filename = "../datasets/creteil_grid.npy"
+    if not Path(filename).exists():
+        grid = map_grid(pd.read_csv(DATASET_MORNING_PATH, sep=';'))
+        np.save(filename, grid)
         return grid
-    return np.load('grid.npy')
+    return np.load(filename)
 
 
 def save_background(grid):
@@ -96,10 +126,11 @@ def save_background(grid):
     plt.imshow(grid, cmap='gray')
     plt.axis('off')  # Turn off the axes
     plt.gca().invert_yaxis()
-    plt.savefig('background.png', bbox_inches='tight', pad_inches=0, dpi=100)  # Save the figure as a jpg
+    plt.savefig('creteil_background.png', bbox_inches='tight', pad_inches=0, dpi=100)  # Save the figure as a jpg
 
 
-def plot_vehicle_count_per_timestep(vehicle_traces: Dict[str, VehicleTrace]):
+def plot_vehicle_count_per_timestep(morning=True):
+    vehicle_traces = get_traces(morning=morning, eval=False)
     timestep_counts = defaultdict(int)
 
     for trace in vehicle_traces.values():
@@ -107,13 +138,13 @@ def plot_vehicle_count_per_timestep(vehicle_traces: Dict[str, VehicleTrace]):
         for timestep in timesteps:
             timestep_counts[timestep] += 1
 
-    start_time = datetime.strptime("07:00:00", "%H:%M:%S")
+    start_time = datetime.strptime("07:00:00" if morning else "17:00:00", "%H:%M:%S")
     timesteps = sorted(timestep_counts.keys())
     times = [start_time + timedelta(seconds=int(t)) for t in timesteps]
     counts = [timestep_counts[t] for t in timesteps]
 
-    experiment_start = datetime.strptime("07:15:00", "%H:%M:%S")
-    experiment_end = datetime.strptime("08:45:00", "%H:%M:%S")
+    experiment_start = datetime.strptime("07:15:00" if morning else "17:15:00", "%H:%M:%S")
+    experiment_end = datetime.strptime("08:45:00" if morning else "18:45:00", "%H:%M:%S")
     experiment_counts = [count for time, count in zip(times, counts) if experiment_start <= time <= experiment_end]
     avg_vehicles = sum(experiment_counts) / len(experiment_counts) if experiment_counts else 0
     max_vehicles = max(experiment_counts) if experiment_counts else 0
@@ -121,11 +152,12 @@ def plot_vehicle_count_per_timestep(vehicle_traces: Dict[str, VehicleTrace]):
     print(f"Average number of vehicles during experiment time: {avg_vehicles}")
     print(f"Maximum number of vehicles during experiment time: {max_vehicles}")
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(16, 6))
     plt.plot(times, counts, linestyle='-')
     plt.xlabel('Time')
     plt.ylabel('Number of Vehicles')
-    plt.title('Number of Vehicles over Time')
+    title_start = 'Créteil Morning' if morning else 'Créteil Evening'
+    plt.title(title_start + ' Trace: Number of Vehicles over Time')
     plt.grid(True)
 
     # Add vertical lines at 7:15 AM and 8:45 AM
@@ -135,12 +167,26 @@ def plot_vehicle_count_per_timestep(vehicle_traces: Dict[str, VehicleTrace]):
     # Add shaded region from 7:15 AM to 8:45 AM
     plt.axvspan(experiment_start, experiment_end, color='red', alpha=0.25)
 
+    # Add horizontal lines for average and maximum number of vehicles
+    plt.axhline(y=avg_vehicles, color='blue', linestyle='--', label=f'Average: {avg_vehicles:.2f}')
+    plt.axhline(y=max_vehicles, color='green', linestyle='--', label=f'Maximum: {max_vehicles}')
+
+    plt.legend(loc='upper right')
+
+    plt.tight_layout()
+
     ax = plt.gca()
     ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M'))
     plt.setp(ax.get_xticklabels(), rotation=0, ha='center')
 
-    plt.savefig("Creteil_morning_vehicles_over_time.png", format="png", dpi=200)
+    filename = "creteil_morning_vehicles_over_time.png" if morning else "creteil_evening_vehicles_over_time.png"
+    plt.savefig(filename, format="png", dpi=200)
     plt.show()
+
+
+def plot_vehicle_count_per_timestep_full():
+    plot_vehicle_count_per_timestep(morning=True)
+    plot_vehicle_count_per_timestep(morning=False)
 
 
 def main():
@@ -150,8 +196,7 @@ def main():
 
     # trace = np.load('trace.npy', allow_pickle=True).item()
 
-    traces = get_traces()
-    plot_vehicle_count_per_timestep(traces)
+    plot_vehicle_count_per_timestep_full()
 
 
 if __name__ == "__main__":
