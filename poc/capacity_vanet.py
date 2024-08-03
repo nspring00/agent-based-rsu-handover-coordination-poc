@@ -261,7 +261,7 @@ class VECStationAgent(simple.VECStationAgent):
         # Calculate the angle in radians
         return math.atan2(dy, dx)
 
-    def perform_handover(self, to: "VECStationAgent", vehicle: VehicleAgent):
+    def perform_handover(self, to: "VECStationAgent", vehicle: VehicleAgent, cause="range"):
         assert self != to, "Cannot hand over to the same station"
         self.vehicles.remove(vehicle)
         to.vehicles.append(vehicle)
@@ -274,6 +274,15 @@ class VECStationAgent(simple.VECStationAgent):
         model: VECModel = self.model
         model.report_successful_handovers += 1
         model.report_total_successful_handovers += 1
+
+        if cause == "range":
+            model.report_total_successful_handovers_range += 1
+        elif cause == "load_balancing":
+            model.report_total_successful_handovers_load_balancing += 1
+        elif cause == "overload":
+            model.report_total_successful_handovers_overload += 1
+        else:
+            raise ValueError(f"Invalid cause for handover: {cause}")
 
     def report_failed_handover(self):
         # noinspection PyTypeChecker
@@ -329,6 +338,9 @@ class VECModel(Model):
         self.report_successful_handovers = 0
         self.report_failed_handovers = 0
         self.report_total_successful_handovers = 0
+        self.report_total_successful_handovers_range = 0
+        self.report_total_successful_handovers_load_balancing = 0
+        self.report_total_successful_handovers_overload = 0
         self.report_total_failed_handovers = 0
 
         def station_vehicle_count_collector(a: Agent):
@@ -350,10 +362,15 @@ class VECModel(Model):
             model_reporters={
                 "SuccessfulHandoverCount": "report_successful_handovers",
                 "TotalSuccessfulHandoverCount": "report_total_successful_handovers",
+                "TotalSuccessfulHandoverCountRange": "report_total_successful_handovers_range",
+                "TotalSuccessfulHandoverCountLoadBalancing": "report_total_successful_handovers_load_balancing",
+                "TotalSuccessfulHandoverCountOverload": "report_total_successful_handovers_overload",
                 "FailedHandoverCount": "report_failed_handovers",
                 "TotalFailedHandoverCount": "report_total_failed_handovers",
                 "AvgQoS": VECModel.report_avg_qos,
                 "MinQoS": VECModel.report_min_qos,
+                "AvgQoS_LoadBased": VECModel.report_avg_qos_load_based,
+                "AvgQoS_RangeBased": VECModel.report_avg_qos_range_based,
                 "GiniLoad": VECModel.report_gini_load,
                 "VehicleCount": VECModel.report_vehicle_count,
             },
@@ -448,11 +465,27 @@ class VECModel(Model):
         qos = compute_qos(self)
         if len(qos) == 0:
             return 1
+        result = sum(qos) / len(qos)
+        other_qos = [x * y for x, y in zip(compute_load_based_qos(self), compute_range_based_qos(self))]
+        other_result = sum(other_qos) / len(other_qos)
+        assert abs(result - other_result) < 1e-9, f"QoS mismatch: {result} vs {other_result}"
         return sum(qos) / len(qos)
 
     def report_min_qos(self):
         qos = compute_qos(self)
         return min(qos, default=1)
+
+    def report_avg_qos_load_based(self):
+        qos = compute_load_based_qos(self)
+        if len(qos) == 0:
+            return 1
+        return sum(qos) / len(qos)
+
+    def report_avg_qos_range_based(self):
+        qos = compute_range_based_qos(self)
+        if len(qos) == 0:
+            return 1
+        return sum(qos) / len(qos)
 
     def report_gini_load(self):
         loads = [station.load for station in self.vec_stations]
@@ -472,6 +505,39 @@ def compute_gini(array):
     index = np.arange(1, array.shape[0] + 1)  # Index per array element
     n = array.shape[0]
     return (np.sum((2 * index - n - 1) * array)) / (n * np.sum(array))
+
+
+def compute_load_based_qos(model: VECModel) -> List[float]:
+    """
+    Load-based QoS is 1 if the station is not overloaded, otherwise the capacity divided by the load.
+    """
+
+    qos_list = []
+    for agent in model.schedule.get_agents_by_type(VehicleAgent):
+        qos = 1
+        if agent.station.load > agent.station.capacity:
+            qos = agent.station.capacity / agent.station.load
+        qos_list.append(qos)
+
+    return qos_list
+
+
+def compute_range_based_qos(model: VECModel) -> List[float]:
+    """
+    Range-based QoS is 1 if the vehicle is within the station's range, otherwise a decaying function of the distance.
+    """
+
+    alpha = 0.0231
+
+    qos_list = []
+    for agent in model.schedule.get_agents_by_type(VehicleAgent):
+        qos = 1
+        if not agent.station.is_vehicle_in_range(agent):
+            qos = math.exp(-alpha * (agent.rsu_distance - agent.station.range))
+
+        qos_list.append(qos)
+
+    return qos_list
 
 
 def compute_qos(model: VECModel) -> List[float]:
@@ -542,7 +608,7 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
             # Based on trajectory suitability, decide if the vehicle should be handed over
             trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
             if trajectory_suitability <= self.leaving_threshold:
-                self.attempt_handover_vehicle(station, vehicle, force=not station.is_vehicle_in_range(vehicle))
+                self.attempt_handover_vehicle(station, vehicle, "range", force=not station.is_vehicle_in_range(vehicle))
 
     def handle_load_balancing_with_neighbors(self, current: VECStationAgent):
         stations_with_vehicles = itertools.product(current.neighbors, current.vehicles)
@@ -565,11 +631,12 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
 
             success = neighbor_station.request_handover(vehicle)
             if not success:
+                current.report_failed_handover()
                 continue
 
             logging.info(
                 f"Vehicle {vehicle.unique_id} is being handed over to VEC station {neighbor_station.unique_id} to balance load")
-            current.perform_handover(neighbor_station, vehicle)
+            current.perform_handover(neighbor_station, vehicle, "load_balancing")
             self.next_ho_timer[vehicle.unique_id] = self.imp_ho_timer
             already_gone.add(vehicle)
 
@@ -585,9 +652,9 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
 
             logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
 
-            self.attempt_handover_vehicle(station, vehicle, force=True)
+            self.attempt_handover_vehicle(station, vehicle, "overload", force=True)
 
-    def attempt_handover_vehicle(self, station: VECStationAgent, vehicle: VehicleAgent, force=False) -> bool:
+    def attempt_handover_vehicle(self, station: VECStationAgent, vehicle: VehicleAgent, cause, force=False) -> bool:
 
         neighbors_with_score = [
             (x, calculate_station_suitability(x, station.get_neighbor_load(x.unique_id), vehicle))
@@ -613,7 +680,7 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
                 station.report_failed_handover()
                 continue
 
-            station.perform_handover(neighbor, vehicle)
+            station.perform_handover(neighbor, vehicle, cause)
             logging.info(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
             self.next_ho_timer[vehicle.unique_id] = self.imp_ho_timer
 
@@ -831,27 +898,31 @@ def print_model_metrics(model, model_name):
     - model: The model object to extract metrics from.
     - model_name: A string representing the name or identifier of the model.
     """
-    start_index = 100
     df = model.datacollector.get_model_vars_dataframe()
     print(f"{model_name} Success: {df['TotalSuccessfulHandoverCount'].iloc[-1]}")
     print(f"{model_name} Failed: {df['TotalFailedHandoverCount'].iloc[-1]}")
-    print(f"{model_name} QoS: {df['AvgQoS'][start_index:].mean()}")
-    print(f"{model_name} QoSStd: {df['AvgQoS'][start_index:].std()}")
-    print(f"{model_name} QoSMin: {df['MinQoS'][start_index:].mean()}")
-    print(f"{model_name} QoSMinStd: {df['MinQoS'][start_index:].std()}")
-    print(f"{model_name} Gini: {df['GiniLoad'][start_index:].mean()}")
-    print(f"{model_name} GiniStd: {df['GiniLoad'][start_index:].std()}")
+    print(f"{model_name} QoS: {df['AvgQoS'].mean()}")
+    print(f"{model_name} QoSStd: {df['AvgQoS'].std()}")
+    print(f"{model_name} QoSMin: {df['MinQoS'].mean()}")
+    print(f"{model_name} QoSMinStd: {df['MinQoS'].std()}")
+    print(f"{model_name} Gini: {df['GiniLoad'].mean()}")
+    print(f"{model_name} GiniStd: {df['GiniLoad'].std()}")
 
     return [
         model_name,
         df['TotalSuccessfulHandoverCount'].iloc[-1],
+        df['TotalSuccessfulHandoverCountRange'].iloc[-1],
+        df['TotalSuccessfulHandoverCountLoadBalancing'].iloc[-1],
+        df['TotalSuccessfulHandoverCountOverload'].iloc[-1],
         df['TotalFailedHandoverCount'].iloc[-1],
-        df['AvgQoS'][start_index:].mean(),
-        df['AvgQoS'][start_index:].std(),
-        df['MinQoS'][start_index:].mean(),
-        df['MinQoS'][start_index:].std(),
-        df['GiniLoad'][start_index:].mean(),
-        df['GiniLoad'][start_index:].std()
+        df['AvgQoS'].mean(),
+        df['AvgQoS'].std(),
+        df['MinQoS'].mean(),
+        df['MinQoS'].std(),
+        df['AvgQoS_LoadBased'].mean(),
+        df['AvgQoS_RangeBased'].mean(),
+        df['GiniLoad'].mean(),
+        df['GiniLoad'].std()
     ]
 
 
@@ -993,24 +1064,28 @@ def compare_load_sharing():
     results.sort(key=lambda x: x[1][0])
 
     min_handovers = min(results, key=lambda x: x[1][1])[1][1]
-    max_qos_mean = max(results, key=lambda x: x[1][3])[1][3]
-    max_qos_min = max(results, key=lambda x: x[1][5])[1][5]
-    min_gini = min(results, key=lambda x: x[1][7])[1][7]
+    max_qos_mean = max(results, key=lambda x: x[1][6])[1][6]
+    max_qos_min = max(results, key=lambda x: x[1][8])[1][8]
+    min_gini = min(results, key=lambda x: x[1][12])[1][12]
 
     # Compute score of each entry by multiplying the % it achieves of the best score of each
     for _, result in results:
         # Compute the combined score for each entry; consider the difference between min and max values; should be <= 1
         ho_score = min_handovers / result[1]
-        qos_mean_score = result[3] / max_qos_mean
-        qos_min_score = result[5] / max_qos_min
-        gini_score = min_gini / result[7]
+        qos_mean_score = result[6] / max_qos_mean
+        qos_min_score = result[8] / max_qos_min
+        gini_score = min_gini / result[12]
         result.append(ho_score + qos_mean_score + qos_min_score + gini_score)
         result.append(ho_score * qos_mean_score * qos_min_score * gini_score)
 
     # Write to CSV with header line
+    header = ("Model,HO_Total,HO_Range,HO_LB,HO_Overload,HO_Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd"
+              ",AvgQoS_Load,AvgQoS_Range,GiniMean,GiniStd,EvalSum,EvalProd\n")
+    header_len = len(header.split(","))
     with open("../results/results.csv", "w") as f:
-        f.write("Model,Successful,Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd,GiniMean,GiniStd,EvalSum,EvalProd\n")
+        f.write(header)
         for result in results:
+            assert len(result[1]) == header_len, f"Length mismatch: {len(result[1])} vs {header_len}"
             f.write(",".join(map(str, result[1])) + "\n")
 
     # "Regression test"
