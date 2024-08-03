@@ -909,7 +909,7 @@ def main():
     plt.show()
 
 
-def print_model_metrics(model, model_name):
+def extract_model_metrics(model, model_name):
     """
     Prints the evaluation metrics for a given model.
 
@@ -921,11 +921,8 @@ def print_model_metrics(model, model_name):
     print(f"{model_name} Success: {df['TotalSuccessfulHandoverCount'].iloc[-1]}")
     print(f"{model_name} Failed: {df['TotalFailedHandoverCount'].iloc[-1]}")
     print(f"{model_name} QoS: {df['AvgQoS'].mean()}")
-    print(f"{model_name} QoSStd: {df['AvgQoS'].std()}")
     print(f"{model_name} QoSMin: {df['MinQoS'].mean()}")
-    print(f"{model_name} QoSMinStd: {df['MinQoS'].std()}")
     print(f"{model_name} Gini: {df['GiniLoad'].mean()}")
-    print(f"{model_name} GiniStd: {df['GiniLoad'].std()}")
 
     return [
         model_name,
@@ -988,13 +985,13 @@ def run_model(params, max_steps=None):
     while model.running and (max_steps is None or step <= max_steps):
         model.step()
         step += 1
-    return params, print_model_metrics(model, model_name)
+    return params, extract_model_metrics(model, model_name)
 
 
 # Define parameter ranges for DefaultOffloadingStrategy
 # overload_threshold_values = [0.9]
 overload_threshold_values = [0.4, 0.9]
-leaving_threshold_values = [0, 0.05, 0.1]
+leaving_threshold_values = [0, 0.05]
 imp_ho_timer_values = [0, 5, 10]
 alt_ho_hysteresis_values = [0, 0.05, 0.1]
 alt_suitability_min_values = [0.15, 0.2, 0.25]
@@ -1005,7 +1002,7 @@ alt_suitability_min_values = [0.15, 0.2, 0.25]
 # alt_suitability_min_values = [0.15]
 
 
-def generate_default_strategy_configs():
+def generate_default_strategy_configs(scenario, rsu_config):
     param_grid = itertools.product(
         overload_threshold_values,
         leaving_threshold_values,
@@ -1024,7 +1021,7 @@ def generate_default_strategy_configs():
             'alt_suitability_min': params[4]
         }
         name = f"Default_ovl{params[0]}_lvg{params[1]}_ho{params[2]}_hst{params[3]}_suit{params[4]}"
-        strategies.append((name, 'default', 1, SEED, None, config))
+        strategies.append((scenario, rsu_config, name, 'default', 1, SEED, None, config))
 
     return strategies
 
@@ -1038,68 +1035,7 @@ BEST_DEFAULT_CONFIG = {
 }
 
 
-def compare_load_sharing():
-    start = time.time()
-
-    # strategies = [
-    #     # ("ShareLoadFreq01", "default", 1, SEED, None),
-    #     # ("ShareLoadFreq05", "default", 5, SEED, None),
-    #     # ("ShareLoadFreq10", "default", 10, SEED, None),
-    #     ("2ShareLoadFreq01", "default", 1, SEED, None),
-    #     ("2ShareLoadFreq02", "default", 2, SEED, None),
-    #     ("2ShareLoadFreq03", "default", 3, SEED, None),
-    #     ("2ShareLoadFreq04", "default", 4, SEED, None),
-    #     ("2ShareLoadFreq05", "default", 5, SEED, None),
-    #     ("2ShareLoadFreq10", "default", 10, SEED, None),
-    #     ("NearestRSU", "nearest", 1, SEED, 1388),
-    #     ("EarliestHO", "earliest", 1, SEED, 1540),
-    #     ("EarliestHONoBack", "earliest2", 1, SEED, 1494),
-    #     ("LatestHO", "latest", 1, SEED, 1264),
-    # ]
-
-    default_strategies = generate_default_strategy_configs()
-
-    scenario = "creteil-morning"
-    rsu_config = "4-full"
-
-    strategies = [
-        (scenario, rsu_config, "DefaultShare01", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare02", "default", 2, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare03", "default", 3, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare04", "default", 4, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare05", "default", 5, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare10", "default", 10, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare15", "default", 15, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare20", "default", 20, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare25", "default", 25, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "DefaultShare30", "default", 30, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
-        (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
-        (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
-        (scenario, rsu_config, "LatestHO", "latest", 1, SEED, 1264, None),
-    ]  # + default_strategies
-
-    i = 0
-    results = []
-    if len(strategies) == 1:
-        # Run in same thread for debugging
-        results.append(run_model(strategies[0]))
-    else:
-        print("Start multi-threaded execution")
-        with Pool(7) as p:
-            for res in p.imap_unordered(run_model, strategies):
-                i += 1
-                print(i, "/", len(strategies))
-                results.append(res)
-
-    print("Time elapsed:", int(time.time() - start), "s")
-
-    # for result in results:
-    #     assert_val = result[0][4]
-    #     if assert_val is not None:
-    #         # Assert HO count equals assertion value for regression tests
-    #         assert result[1][1] == assert_val, f"Assertion failed: {result[1][0]}"
-
+def store_results(results, filename):
     results.sort(key=lambda x: x[1][0])
 
     min_handovers = min(results, key=lambda x: x[1][1])[1][1]
@@ -1121,20 +1057,100 @@ def compare_load_sharing():
     header = ("Model,HO_Total,HO_Range,HO_LB,HO_Overload,HO_Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd"
               ",AvgQoS_Load,AvgQoS_Range,GiniMean,GiniStd,EvalSum,EvalProd\n")
     header_len = len(header.split(","))
-    with open(f"../results/results_{scenario}_{rsu_config}.csv", "w") as f:
+    with open(f"../results/{filename}.csv", "w") as f:
         f.write(header)
         for result in results:
             assert len(result[1]) == header_len, f"Length mismatch: {len(result[1])} vs {header_len}"
             f.write(",".join(map(str, result[1])) + "\n")
 
-    # "Regression test"
-    # assert model1.report_total_successful_handovers == 2959
-    # assert model5.report_total_successful_handovers == 2905
-    # assert model10.report_total_successful_handovers == 2751
+
+def create_run_model_with_steps(max_steps):
+    def run_model_with_steps(params):
+        return run_model(params, max_steps)
+
+    return run_model_with_steps
+
+
+def run_model_500(params):
+    return run_model(params, max_steps=500)
+
+
+def eval_strategy_params():
+    start = time.time()
+
+    scenario = "creteil-morning"
+    rsu_config = "4-half"
+
+    default_strategies = generate_default_strategy_configs(scenario, rsu_config)
+    strategies = [
+                     (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
+                     (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
+                     (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
+                     (scenario, rsu_config, "LatestHO", "latest", 1, SEED, 1264, None),
+                 ] + default_strategies
+
+    i = 0
+    results = []
+    if len(strategies) == 1:
+        # Run in same thread for debugging
+        results.append(run_model(strategies[0]))
+    else:
+        print("Start multi-threaded execution")
+        with Pool(7) as p:
+            # Run only 500 steps for param evaluation
+            for res in p.imap_unordered(run_model_500, strategies):
+                i += 1
+                print(i, "/", len(strategies))
+                results.append(res)
+
+    print("Time elapsed:", int(time.time() - start), "s")
+
+    store_results(results, f"results_eval_params_{scenario}_{rsu_config}")
+
+
+def run_benchmarks():
+    start = time.time()
+
+    scenario = "creteil-morning"
+    rsu_config = "4-full"
+
+    strategies = [
+        (scenario, rsu_config, "DefaultShare01", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare02", "default", 2, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare03", "default", 3, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare04", "default", 4, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare05", "default", 5, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare10", "default", 10, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare15", "default", 15, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare20", "default", 20, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare25", "default", 25, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare30", "default", 30, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
+        (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
+        (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
+        (scenario, rsu_config, "LatestHO", "latest", 1, SEED, 1264, None),
+    ]
+
+    i = 0
+    results = []
+    if len(strategies) == 1:
+        # Run in same thread for debugging
+        results.append(run_model(strategies[0]))
+    else:
+        print("Start multi-threaded execution")
+        with Pool(7) as p:
+            for res in p.imap_unordered(run_model, strategies):
+                i += 1
+                print(i, "/", len(strategies))
+                results.append(res)
+
+    print("Time elapsed:", int(time.time() - start), "s")
+
+    store_results(results, f"results_{scenario}_{rsu_config}")
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.ERROR)
 
-    # main()
-    compare_load_sharing()
+    # eval_strategy_params()
+    run_benchmarks()
