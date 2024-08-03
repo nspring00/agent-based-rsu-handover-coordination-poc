@@ -1098,7 +1098,7 @@ def eval_strategy_params():
         print("Start multi-threaded execution")
         with Pool(7) as p:
             # Run only 500 steps for param evaluation
-            for res in p.imap_unordered(run_model_1000, strategies):
+            for res in p.imap_unordered(run_model, strategies):
                 i += 1
                 print(i, "/", len(strategies))
                 results.append(res)
