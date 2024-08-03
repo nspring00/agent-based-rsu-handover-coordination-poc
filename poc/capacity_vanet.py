@@ -994,7 +994,7 @@ overload_threshold_values = [0.4, 0.9]
 leaving_threshold_values = [0, 0.05]
 imp_ho_timer_values = [0, 5, 10]
 alt_ho_hysteresis_values = [0, 0.05, 0.1]
-alt_suitability_min_values = [0.15, 0.2, 0.25]
+alt_suitability_min_values = [0.15, 0.2, 0.25, 0.3, 0.35, 0.4]
 
 
 # imp_ho_timer_values = [15]
@@ -1071,8 +1071,8 @@ def create_run_model_with_steps(max_steps):
     return run_model_with_steps
 
 
-def run_model_500(params):
-    return run_model(params, max_steps=500)
+def run_model_1000(params):
+    return run_model(params, max_steps=1000)
 
 
 def eval_strategy_params():
@@ -1098,7 +1098,7 @@ def eval_strategy_params():
         print("Start multi-threaded execution")
         with Pool(7) as p:
             # Run only 500 steps for param evaluation
-            for res in p.imap_unordered(run_model_500, strategies):
+            for res in p.imap_unordered(run_model_1000, strategies):
                 i += 1
                 print(i, "/", len(strategies))
                 results.append(res)
