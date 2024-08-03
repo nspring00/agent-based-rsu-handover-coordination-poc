@@ -399,7 +399,7 @@ class VECModel(Model):
 
         self.to_remove: List[VehicleAgent] = []
 
-        self.step_second = 0
+        self.step_second = -1
 
         self.datacollector.collect(self)
 
@@ -429,6 +429,8 @@ class VECModel(Model):
 
         assert len(self.to_remove) == len(self.agents) - 4, "Agent count mismatch"  # 4 is number of stations
 
+        self.step_second += 1
+
         while self.unplaced_vehicles and self.unplaced_vehicles[-1].first_ts == self.step_second:
             v_trace = self.unplaced_vehicles.pop()
             v = self.spawn_vehicle(v_trace.id, self.step_second)
@@ -453,7 +455,9 @@ class VECModel(Model):
         self.report_successful_handovers = 0
         self.report_failed_handovers = 0
 
-        self.step_second += 1
+        # Terminate if no more vehicles are left
+        if len(self.to_remove) == 0 and len(self.unplaced_vehicles) == 0:
+            self.running = False
 
     def update_shared_load_info(self):
         for station in self.vec_stations:
@@ -936,7 +940,7 @@ STRATEGIES_DICT = {
 }
 
 
-def run_model(params):
+def run_model(params, max_steps=None):
     logging.disable(logging.CRITICAL)
 
     model_name, strategy_key, load_update_interval, seed, _, config = params
@@ -950,8 +954,10 @@ def run_model(params):
     model = VECModel(strategy, SCENARIO_1_1, DynamicVehicleLoadGenerator(seed=seed),
                      vanetLoader.get_traces(morning=True, eval=True), load_update_interval=load_update_interval,
                      seed=seed)
-    for _ in range(1000):
+    step = 0
+    while model.running and (max_steps is None or step <= max_steps):
         model.step()
+        step += 1
     return params, print_model_metrics(model, model_name)
 
 
