@@ -47,10 +47,10 @@ class RsuConfig:
 
 # TODO needs fine-tuning
 SCENARIO_1_1 = [
-    RsuConfig((72, 50), 70, 38.75 * units.TERA),  # red
-    RsuConfig((35, 120), 70, 38.75 * units.TERA),  # blue
-    RsuConfig((115, 150), 70, 38.75 * units.TERA),  # yellow
-    RsuConfig((165, 50), 70, 38.75 * units.TERA),  # green
+    RsuConfig((72, 50), 70, 65 * units.TERA),  # red
+    RsuConfig((35, 120), 70, 65 * units.TERA),  # blue
+    RsuConfig((116, 150), 70, 65 * units.TERA),  # yellow
+    RsuConfig((165, 50), 70, 65 * units.TERA),  # green
 ]
 
 
