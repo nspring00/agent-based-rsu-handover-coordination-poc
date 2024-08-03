@@ -45,12 +45,27 @@ class RsuConfig:
     capacity: int
 
 
-# TODO needs fine-tuning
-SCENARIO_1_1 = [
-    RsuConfig((72, 50), 70, 65 * units.TERA),  # red
-    RsuConfig((35, 120), 70, 65 * units.TERA),  # blue
-    RsuConfig((116, 150), 70, 65 * units.TERA),  # yellow
-    RsuConfig((165, 50), 70, 65 * units.TERA),  # green
+RSU_RANGE = 70
+RSU_CAPACITY_T4 = 65 * units.TERA
+RSU_CAPACITY_T4_HALF = 32.5 * units.TERA
+RSU_CAPACITY_T4_QUARTER = 16.25 * units.TERA
+
+CRETEIL_4_RSU_FULL_CAPA_CONFIG = [
+    RsuConfig((72, 50), RSU_RANGE, RSU_CAPACITY_T4),  # red
+    RsuConfig((35, 120), RSU_RANGE, RSU_CAPACITY_T4),  # blue
+    RsuConfig((116, 150), RSU_RANGE, RSU_CAPACITY_T4),  # yellow
+    RsuConfig((165, 50), RSU_RANGE, RSU_CAPACITY_T4),  # green
+]
+
+CRETEIL_4_RSU_HALF_CAPA_CONFIG = [
+    RsuConfig((72, 50), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # red
+    RsuConfig((35, 120), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # blue
+    RsuConfig((116, 150), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # yellow
+    RsuConfig((165, 50), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # green
+]
+
+CRETEIL_9_RSU_FULL_CAPA_CONFIG = [
+    # TODO
 ]
 
 
@@ -939,21 +954,36 @@ STRATEGIES_DICT = {
     "latest": LatestPossibleHandoverStrategy,
 }
 
+SIMULATION_CONFIGS = {
+    "creteil-morning": {
+        "traces": lambda: vanetLoader.get_traces(morning=True, eval=True),
+        "4-full": CRETEIL_4_RSU_FULL_CAPA_CONFIG,
+        "4-half": CRETEIL_4_RSU_HALF_CAPA_CONFIG,
+    },
+    "creteil-evening": {
+        "traces": lambda: vanetLoader.get_traces(morning=False, eval=True),
+        "4-full": CRETEIL_4_RSU_FULL_CAPA_CONFIG,
+        "4-half": CRETEIL_4_RSU_HALF_CAPA_CONFIG,
+    }
+}
+
 
 def run_model(params, max_steps=None):
     logging.disable(logging.CRITICAL)
 
-    model_name, strategy_key, load_update_interval, seed, _, config = params
+    scenario, rsu_config, model_name, strategy_key, load_update_interval, seed, _, strategy_config = params
     strategy_class = STRATEGIES_DICT[strategy_key]
 
     if strategy_key == 'default':
-        strategy = strategy_class(**config)
+        strategy = strategy_class(**strategy_config)
     else:
         strategy = strategy_class()
 
-    model = VECModel(strategy, SCENARIO_1_1, DynamicVehicleLoadGenerator(seed=seed),
-                     vanetLoader.get_traces(morning=True, eval=True), load_update_interval=load_update_interval,
-                     seed=seed)
+    trace_loader = SIMULATION_CONFIGS[scenario]["traces"]
+    rsu_config = SIMULATION_CONFIGS[scenario][rsu_config]
+
+    model = VECModel(strategy, rsu_config, DynamicVehicleLoadGenerator(seed=seed), trace_loader(),
+                     load_update_interval=load_update_interval, seed=seed)
     step = 0
     while model.running and (max_steps is None or step <= max_steps):
         model.step()
@@ -1029,21 +1059,24 @@ def compare_load_sharing():
 
     default_strategies = generate_default_strategy_configs()
 
+    scenario = "creteil-morning"
+    rsu_config = "4-full"
+
     strategies = [
-        ("DefaultShare01", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare02", "default", 2, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare03", "default", 3, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare04", "default", 4, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare05", "default", 5, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare10", "default", 10, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare15", "default", 15, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare20", "default", 20, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare25", "default", 25, SEED, None, BEST_DEFAULT_CONFIG),
-        ("DefaultShare30", "default", 30, SEED, None, BEST_DEFAULT_CONFIG),
-        ("NearestRSU", "nearest", 1, SEED, 1388, None),
-        ("EarliestHO", "earliest", 1, SEED, 1540, None),
-        ("EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
-        ("LatestHO", "latest", 1, SEED, 1264, None),
+        (scenario, rsu_config, "DefaultShare01", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare02", "default", 2, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare03", "default", 3, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare04", "default", 4, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare05", "default", 5, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare10", "default", 10, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare15", "default", 15, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare20", "default", 20, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare25", "default", 25, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "DefaultShare30", "default", 30, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
+        (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
+        (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
+        (scenario, rsu_config, "LatestHO", "latest", 1, SEED, 1264, None),
     ]  # + default_strategies
 
     i = 0
@@ -1088,7 +1121,7 @@ def compare_load_sharing():
     header = ("Model,HO_Total,HO_Range,HO_LB,HO_Overload,HO_Failed,AvgQoSMean,AvgQoSStd,MinQoSMean,MinQoSStd"
               ",AvgQoS_Load,AvgQoS_Range,GiniMean,GiniStd,EvalSum,EvalProd\n")
     header_len = len(header.split(","))
-    with open("../results/results.csv", "w") as f:
+    with open(f"../results/results_{scenario}_{rsu_config}.csv", "w") as f:
         f.write(header)
         for result in results:
             assert len(result[1]) == header_len, f"Length mismatch: {len(result[1])} vs {header_len}"
