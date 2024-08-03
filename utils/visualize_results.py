@@ -18,30 +18,40 @@ def plot_distribution(models, means, stds, title, ylabel):
     plt.show()
 
 
-def main():
+def visualize(filename, title):
     # Read the CSV file into a DataFrame
-    df = pd.read_csv('../results/results.csv')
+    df = pd.read_csv(filename)
 
     # Sort the DataFrame by the 'Model' column alphabetically
     df = df.sort_values(by='Model')
 
     # Extract the relevant columns
     models = df['Model']
-    successful = df['Successful']
-    failed = df['Failed']
+    ho_range = df['HO_Range']
+    ho_load_balancing = df['HO_LB']
+    ho_overload = df['HO_Overload']
+
+    successful = df['HO_Total']
+    failed = df['HO_Failed']
 
     # Create a bar chart
     x = range(len(models))
     width = 0.35  # Width of the bars
 
     fig, ax = plt.subplots()
-    ax.bar(x, successful, width, label='Successful')
-    ax.bar([p + width for p in x], failed, width, label='Failed')
+
+    # Create stacked bars for successful handovers
+    ax.bar(x, ho_range, width, label='Range HO')
+    ax.bar(x, ho_load_balancing, width, bottom=ho_range, label='Load Balancing HO')
+    ax.bar(x, ho_overload, width, bottom=ho_range + ho_load_balancing, label='Overload HO')
+
+    # Create bars for failed handovers
+    ax.bar([p + width for p in x], failed, width, label='Failed HO')
 
     # Add labels, title, and legend
     ax.set_xlabel('Model')
     ax.set_ylabel('HO Count')
-    ax.set_title('Successful and Failed Handovers per Model')
+    ax.set_title(title + ': Successful and Failed Handovers per Model')
     ax.set_xticks([p + width / 2 for p in x])
     ax.set_xticklabels(models, rotation=45, ha='right')
     ax.legend()
@@ -61,16 +71,28 @@ def main():
     gini_std = df['GiniStd']
 
     # Plot AvgQoSMean distribution
-    plot_distribution(models, avg_qos_mean, avg_qos_std, 'Average QoS Mean Distribution', 'Density')
+    plot_distribution(models, avg_qos_mean, avg_qos_std, title + ': Average QoS Mean Distribution', 'Density')
     # plot_beta_distribution(models, avg_qos_mean, avg_qos_std, 'Average QoS Mean Distribution', 'Density')
 
     # Plot MinQoSMean distribution
-    plot_distribution(models, min_qos_mean, min_qos_std, 'Minimum QoS Mean Distribution', 'Density')
+    plot_distribution(models, min_qos_mean, min_qos_std, title + ': Minimum QoS Mean Distribution', 'Density')
     # plot_beta_distribution(models, min_qos_mean, min_qos_std, 'Minimum QoS Mean Distribution', 'Density')
 
     # Plot GiniMean distribution
-    plot_distribution(models, gini_mean, gini_std, 'Gini Mean Distribution', 'Density')
+    plot_distribution(models, gini_mean, gini_std, title + ': Gini Mean Distribution', 'Density')
     # plot_beta_distribution(models, gini_mean, gini_std, 'Gini Mean Distribution', 'Density')
+
+
+results = [
+    ("results", "Demo")
+]
+
+
+def main():
+    for filename, result_name in results:
+        filename = f"../results/{filename}.csv"
+        print(f"Processing {filename}...")
+        visualize(filename, result_name)
 
 
 if __name__ == "__main__":
