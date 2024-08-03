@@ -482,12 +482,16 @@ def compute_qos(model: VECModel) -> List[float]:
     alpha = 0.0231
 
     def qos_internal(agent: VehicleAgent):
+        range_factor = 1
         dist = distance(agent.pos, agent.station.pos)
+        if not agent.station.is_vehicle_in_range(agent):
+            range_factor = math.exp(-alpha * (dist - agent.station.range))
 
-        if agent.station.is_vehicle_in_range(agent):
-            return 1
+        load_factor = 1
+        if agent.station.load > agent.station.capacity:
+            load_factor = agent.station.capacity / agent.station.load
 
-        return math.exp(-alpha * (dist - agent.station.range))
+        return load_factor * range_factor
 
     qos_list = []
     for agent in model.schedule.get_agents_by_type(VehicleAgent):
