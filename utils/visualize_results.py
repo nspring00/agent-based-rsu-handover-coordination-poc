@@ -19,20 +19,21 @@ def plot_distribution(models, means, stds, title, ylabel):
 
 
 def visualize_results(configs, title):
-    configs = [(filename, pd.read_csv(f"../results/{filename}.csv").sort_values(by='Model'), title) for filename, title in
+    configs = [(filename, pd.read_csv(f"../results/{filename}.csv").sort_values(by='Model'), title) for filename, title
+               in
                configs]
 
     for filename, df, res_title in configs:
         plot_ho_count(filename, df, res_title)
 
-    plot_metric(configs, 'GiniMean', f'{title}: Average Gini Values for Different Models', 'Gini Value')
-    plot_metric(configs, 'AvgQoSMean', f'{title}: Average QoS Values for Different Models', 'Avg QoS Value',
+    plot_metric(title, configs, 'GiniMean', f'{title}: Average Gini Values for Different Models', 'Gini Value')
+    plot_metric(title, configs, 'AvgQoSMean', f'{title}: Average QoS Values for Different Models', 'Avg QoS Value',
                 qos=True)
-    plot_metric(configs, 'MinQoSMean', f'{title}: Minimum QoS Values for Different Models', 'Min QoS Value',
+    plot_metric(title, configs, 'MinQoSMean', f'{title}: Minimum QoS Values for Different Models', 'Min QoS Value',
                 qos=True)
 
 
-def plot_metric(configs, metric_col, title, ylabel, qos=False):
+def plot_metric(experiment, configs, metric_col, title, ylabel, qos=False):
     plt.figure(figsize=(10, 5))
 
     for i, (filename, df, res_title) in enumerate(configs):
@@ -60,6 +61,11 @@ def plot_metric(configs, metric_col, title, ylabel, qos=False):
     plt.grid(True)
     plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels
     plt.tight_layout()
+
+    filename = (experiment.strip().lower().replace(" ", "_") + "_" +
+                metric_col.lower().replace(" ", "_") + '_handovers.png')
+    plt.savefig(filename, format="png", dpi=200)
+
     plt.show()
 
 
@@ -136,13 +142,15 @@ def plot_ho_count(filename, df, title):
 
 results_creteil_morning_sparse = [
     # ("results", "Demo")
-    ("results_creteil-morning_4-full", "Full Capacity"),
-    ("results_creteil-morning_4-half", "Half Capacity"),
+    ("results_creteil-morning_4-full", "Morning Full Capacity"),
+    ("results_creteil-morning_4-half", "Morning Half Capacity"),
+    ("results_creteil-evening_4-full", "Evening Full Capacity"),
+    ("results_creteil-evening_4-half", "Evening Half Capacity"),
 ]
 
 
 def main():
-    visualize_results(results_creteil_morning_sparse, "Creteil Morning Sparse")
+    visualize_results(results_creteil_morning_sparse, "Creteil Sparse")
 
 
 if __name__ == "__main__":
