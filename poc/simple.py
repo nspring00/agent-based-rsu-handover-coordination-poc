@@ -18,6 +18,11 @@ VEC_STATION_COLORS = {
     10002: "blue",
     10003: "orange",
     10004: "green",
+    10005: "olive",
+    10006: "pink",
+    10007: "purple",
+    10008: "brown",
+    10009: "cyan"
 }
 
 

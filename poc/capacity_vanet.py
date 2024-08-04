@@ -35,6 +35,11 @@ VEC_STATION_COLORS = {
     10002: "blue",
     10003: "orange",
     10004: "green",
+    10005: "olive",
+    10006: "pink",
+    10007: "purple",
+    10008: "brown",
+    10009: "cyan"
 }
 
 
@@ -64,9 +69,22 @@ CRETEIL_4_RSU_HALF_CAPA_CONFIG = [
     RsuConfig((165, 50), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # green
 ]
 
-CRETEIL_9_RSU_FULL_CAPA_CONFIG = [
-    # TODO
+CRETEIL_9_RSU_POSITIONS = [
+    (72, 50),  # red
+    (35, 120),  # blue
+    (116, 150),  # yellow
+    (165, 50),  # green
+    (97, 98),  # olive
+    (120, 30),  # yellow
+    (30, 70),  # purple
+    (70, 155),  # brown
+    (160, 130),  # cyan
 ]
+
+CRETEIL_9_RSU_FULL_CAPA_CONFIG = [RsuConfig(pos, RSU_RANGE, RSU_CAPACITY_T4) for pos in CRETEIL_9_RSU_POSITIONS]
+CRETEIL_9_RSU_HALF_CAPA_CONFIG = [RsuConfig(pos, RSU_RANGE, RSU_CAPACITY_T4_HALF) for pos in CRETEIL_9_RSU_POSITIONS]
+CRETEIL_9_RSU_QUARTER_CAPA_CONFIG = [RsuConfig(pos, RSU_RANGE, RSU_CAPACITY_T4_QUARTER) for pos in
+                                     CRETEIL_9_RSU_POSITIONS]
 
 
 class RSAgentStrategy(ABC):
@@ -218,6 +236,7 @@ def calculate_station_suitability(station: "VECStationAgent", station_load: floa
     Returns 0 if the station is not in range or the target station's capacity would be exceeded after HO.
     """
 
+    assert station_load >= 0, f"Invalid negative station load {station_load}"
     if station_load + vehicle.offloaded_load > station.capacity:
         return 0
 
@@ -264,6 +283,9 @@ class VECStationAgent(simple.VECStationAgent):
 
     def increment_neighbor_load(self, neighbor_id, load):
         self.neighbor_load[neighbor_id] += load
+        # Might be less than 0 because of delayed load sharing
+        if self.neighbor_load[neighbor_id] < 0:
+            self.neighbor_load[neighbor_id] = 0
 
     def step(self):
         self.strategy.handle_offloading(self)
@@ -400,7 +422,7 @@ class VECModel(Model):
             self.vec_stations.append(station)
             self.schedule.add(station)
 
-        for i in range(4):
+        for i in range(len(self.vec_stations)):
             self.vec_stations[i].neighbors = [station for station in self.vec_stations
                                               if distance(station.pos, self.vec_stations[i].pos) <= station.range +
                                               self.vec_stations[i].range and station != self.vec_stations[i]]
@@ -442,7 +464,8 @@ class VECModel(Model):
             self.schedule.remove(v)
             v.remove()
 
-        assert len(self.to_remove) == len(self.agents) - 4, "Agent count mismatch"  # 4 is number of stations
+        assert len(self.to_remove) == len(self.agents) - len(
+            self.vec_stations), "Agent count mismatch"  # 4 is number of stations
 
         self.step_second += 1
 
@@ -456,15 +479,15 @@ class VECModel(Model):
             self.to_remove.append(v)
             self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
 
+        if self.step_second % self.load_update_interval == 0:
+            self.update_shared_load_info()
+
         # TODO simplify??
         for _ in range(STEPS_PER_SECOND):
             self.schedule.step()
             self.rs_strategy.after_step(self)
 
         self.datacollector.collect(self)
-
-        if self.step_second % self.load_update_interval == 0:
-            self.update_shared_load_info()
 
         # Reset per-step statistics
         self.report_successful_handovers = 0
@@ -957,11 +980,17 @@ SIMULATION_CONFIGS = {
         "traces": lambda: vanetLoader.get_traces(morning=True, eval=True),
         "4-full": CRETEIL_4_RSU_FULL_CAPA_CONFIG,
         "4-half": CRETEIL_4_RSU_HALF_CAPA_CONFIG,
+        "9-full": CRETEIL_9_RSU_FULL_CAPA_CONFIG,
+        "9-half": CRETEIL_9_RSU_HALF_CAPA_CONFIG,
+        "9-quarter": CRETEIL_9_RSU_QUARTER_CAPA_CONFIG,
     },
     "creteil-evening": {
         "traces": lambda: vanetLoader.get_traces(morning=False, eval=True),
         "4-full": CRETEIL_4_RSU_FULL_CAPA_CONFIG,
         "4-half": CRETEIL_4_RSU_HALF_CAPA_CONFIG,
+        "9-full": CRETEIL_9_RSU_FULL_CAPA_CONFIG,
+        "9-half": CRETEIL_9_RSU_HALF_CAPA_CONFIG,
+        "9-quarter": CRETEIL_9_RSU_QUARTER_CAPA_CONFIG,
     }
 }
 
@@ -1153,6 +1182,12 @@ def run_all_benchmarks():
         ("creteil-morning", "4-half"),
         ("creteil-evening", "4-full"),
         ("creteil-evening", "4-half"),
+        ("creteil-morning", "9-full"),
+        ("creteil-morning", "9-half"),
+        ("creteil-morning", "9-quarter"),
+        ("creteil-evening", "9-full"),
+        ("creteil-evening", "9-half"),
+        ("creteil-evening", "9-quarter"),
     ]
 
     for scenario, rsu_config in configs:

@@ -141,7 +141,7 @@ def plot_ho_count(filename, df, title):
     # plot_beta_distribution(models, gini_mean, gini_std, 'Gini Mean Distribution', 'Density')
 
 
-results_creteil_morning_sparse = [
+results_creteil_sparse = [
     # ("results", "Demo")
     ("results_creteil-morning_4-full", "Morning Full Capacity"),
     ("results_creteil-morning_4-half", "Morning Half Capacity"),
@@ -149,9 +149,18 @@ results_creteil_morning_sparse = [
     ("results_creteil-evening_4-half", "Evening Half Capacity"),
 ]
 
+results_creteil_dense = [
+    ("results_creteil-morning_9-full", "Morning Full Capacity"),
+    ("results_creteil-morning_9-half", "Morning Half Capacity"),
+    ("results_creteil-evening_9-full", "Evening Full Capacity"),
+    ("results_creteil-evening_9-half", "Evening Half Capacity"),
+
+]
+
 
 def main():
-    visualize_results(results_creteil_morning_sparse, "Creteil Sparse")
+    # visualize_results(results_creteil_sparse, "Creteil Sparse")
+    visualize_results(results_creteil_sparse, "Creteil Dense")
 
 
 if __name__ == "__main__":
