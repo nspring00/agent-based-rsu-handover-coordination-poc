@@ -18,12 +18,57 @@ def plot_distribution(models, means, stds, title, ylabel):
     plt.show()
 
 
-def visualize(filename, title):
-    # Read the CSV file into a DataFrame
-    df = pd.read_csv(filename)
+def visualize_results(configs, title):
+    configs = [(filename, pd.read_csv(f"../results/{filename}.csv").sort_values(by='Model'), title) for filename, title in
+               configs]
 
-    # Sort the DataFrame by the 'Model' column alphabetically
-    df = df.sort_values(by='Model')
+    for filename, df, res_title in configs:
+        plot_ho_count(filename, df, res_title)
+
+    plot_metric(configs, 'GiniMean', f'{title}: Average Gini Values for Different Models', 'Gini Value')
+    plot_metric(configs, 'AvgQoSMean', f'{title}: Average QoS Values for Different Models', 'Avg QoS Value',
+                qos=True)
+    plot_metric(configs, 'MinQoSMean', f'{title}: Minimum QoS Values for Different Models', 'Min QoS Value',
+                qos=True)
+
+
+def plot_metric(configs, metric_col, title, ylabel, qos=False):
+    plt.figure(figsize=(10, 5))
+
+    for i, (filename, df, res_title) in enumerate(configs):
+        models = df['Model']
+        metric_mean = df[metric_col]
+
+        first_group = models[models.str.startswith('DefaultShare')]
+        first_group_metric = metric_mean[:len(first_group)]
+
+        last_group = models[len(first_group):]
+        last_group_metric = metric_mean[len(first_group):]
+
+        plt.plot(first_group, first_group_metric, label=f"Proposed Strategy - {res_title}", marker='o')
+
+        if not qos and i == 0:
+            plt.scatter(last_group, last_group_metric, label="Baseline Strategies", marker='s', color='red')
+
+        if qos:
+            plt.scatter(last_group, last_group_metric, label=f"Baseline Strategies - {res_title}", marker='s')
+
+    plt.title(title)
+    plt.xlabel('Model')
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.grid(True)
+    plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_ho_count(filename, df, title):
+    # Read the CSV file into a DataFrame
+    # df = pd.read_csv(filename)
+    #
+    # # Sort the DataFrame by the 'Model' column alphabetically
+    # df = df.sort_values(by='Model')
 
     # Extract the relevant columns
     models = df['Model']
@@ -58,6 +103,10 @@ def visualize(filename, title):
 
     # Display the plot
     plt.tight_layout()
+
+    filename = filename + '_handovers.png'
+    plt.savefig(filename, format="png", dpi=200)
+
     plt.show()
 
     # Plot distributions
@@ -69,6 +118,8 @@ def visualize(filename, title):
     min_qos_std = df['MinQoSStd']
     gini_mean = df['GiniMean']
     gini_std = df['GiniStd']
+
+    return
 
     # Plot AvgQoSMean distribution
     plot_distribution(models, avg_qos_mean, avg_qos_std, title + ': Average QoS Mean Distribution', 'Density')
@@ -83,16 +134,15 @@ def visualize(filename, title):
     # plot_beta_distribution(models, gini_mean, gini_std, 'Gini Mean Distribution', 'Density')
 
 
-results = [
-    ("results", "Demo")
+results_creteil_morning_sparse = [
+    # ("results", "Demo")
+    ("results_creteil-morning_4-full", "Full Capacity"),
+    ("results_creteil-morning_4-half", "Half Capacity"),
 ]
 
 
 def main():
-    for filename, result_name in results:
-        filename = f"../results/{filename}.csv"
-        print(f"Processing {filename}...")
-        visualize(filename, result_name)
+    visualize_results(results_creteil_morning_sparse, "Creteil Morning Sparse")
 
 
 if __name__ == "__main__":
