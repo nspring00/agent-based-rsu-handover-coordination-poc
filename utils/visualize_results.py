@@ -26,7 +26,8 @@ def visualize_results(configs, title):
     for filename, df, res_title in configs:
         plot_ho_count(filename, df, res_title)
 
-    plot_metric(title, configs, 'GiniMean', f'{title}: Average Gini Values for Different Models', 'Gini Value')
+    plot_metric(title, configs, 'GiniMean', f'{title}: Average Gini Values for Different Models', 'Gini Value',
+                qos=True),
     plot_metric(title, configs, 'AvgQoSMean', f'{title}: Average QoS Values for Different Models', 'Avg QoS Value',
                 qos=True)
     plot_metric(title, configs, 'MinQoSMean', f'{title}: Minimum QoS Values for Different Models', 'Min QoS Value',
@@ -63,7 +64,7 @@ def plot_metric(experiment, configs, metric_col, title, ylabel, qos=False):
     plt.tight_layout()
 
     filename = (experiment.strip().lower().replace(" ", "_") + "_" +
-                metric_col.lower().replace(" ", "_") + '_handovers.png')
+                metric_col.lower().replace(" ", "_") + '.png')
     plt.savefig(filename, format="png", dpi=200)
 
     plt.show()
