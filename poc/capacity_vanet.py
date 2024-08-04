@@ -1109,11 +1109,8 @@ def eval_strategy_params():
     store_results(results, f"results_eval_params_{scenario}_{rsu_config}")
 
 
-def run_benchmarks():
+def run_benchmarks(scenario, rsu_config):
     start = time.time()
-
-    scenario = "creteil-morning"
-    rsu_config = "4-full"
 
     strategies = [
         (scenario, rsu_config, "DefaultShare01", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
@@ -1128,7 +1125,7 @@ def run_benchmarks():
         (scenario, rsu_config, "DefaultShare30", "default", 30, SEED, None, BEST_DEFAULT_CONFIG),
         (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
         (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
-        (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
+        # (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
         (scenario, rsu_config, "LatestHO", "latest", 1, SEED, 1264, None),
     ]
 
@@ -1150,8 +1147,22 @@ def run_benchmarks():
     store_results(results, f"results_{scenario}_{rsu_config}")
 
 
+def run_all_benchmarks():
+    configs = [
+        ("creteil-morning", "4-full"),
+        ("creteil-morning", "4-half"),
+        ("creteil-evening", "4-full"),
+        ("creteil-evening", "4-half"),
+    ]
+
+    for scenario, rsu_config in configs:
+        print(f"Running benchmarks for {scenario} with {rsu_config}")
+        run_benchmarks(scenario, rsu_config)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.ERROR)
 
     # eval_strategy_params()
-    run_benchmarks()
+    run_all_benchmarks()
+    # run_benchmarks()
