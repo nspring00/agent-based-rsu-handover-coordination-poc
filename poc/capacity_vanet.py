@@ -991,7 +991,7 @@ def run_model(params, max_steps=None):
 
 # Define parameter ranges for DefaultOffloadingStrategy
 # overload_threshold_values = [0.9]
-overload_threshold_values = [0.4, 0.9]
+overload_threshold_values = [0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
 leaving_threshold_values = [0, 0.05]
 imp_ho_timer_values = [0, 5, 10]
 alt_ho_hysteresis_values = [0, 0.05, 0.1]
