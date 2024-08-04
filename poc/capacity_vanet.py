@@ -661,6 +661,7 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
 
     def manage_overload(self, station: VECStationAgent):
         # Iterate through vehicles sorted by trajectory suitability ascending, selects the least suitable first
+        # TODO what if other station is also overloaded???
         for vehicle in sorted(station.vehicles, key=lambda x: calculate_trajectory_suitability(station, x),
                               reverse=False):
             if self.next_ho_timer[vehicle.unique_id] > 0:
@@ -1029,7 +1030,7 @@ def generate_default_strategy_configs(scenario, rsu_config):
 BEST_DEFAULT_CONFIG = {
     'overload_threshold': 0.9,
     'leaving_threshold': 0,
-    'imp_ho_timer': 5,
+    'imp_ho_timer': 10,
     'alt_ho_hysteresis': 0.05,
     'alt_suitability_min': 0.2,
 }
