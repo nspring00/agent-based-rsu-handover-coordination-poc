@@ -152,15 +152,17 @@ results_creteil_sparse = [
 results_creteil_dense = [
     ("results_creteil-morning_9-full", "Morning Full Capacity"),
     ("results_creteil-morning_9-half", "Morning Half Capacity"),
+    ("results_creteil-morning_9-quarter", "Morning Quarter Capacity"),
     ("results_creteil-evening_9-full", "Evening Full Capacity"),
     ("results_creteil-evening_9-half", "Evening Half Capacity"),
+    ("results_creteil-evening_9-quarter", "Evening Quarter Capacity"),
 
 ]
 
 
 def main():
     # visualize_results(results_creteil_sparse, "Creteil Sparse")
-    visualize_results(results_creteil_sparse, "Creteil Dense")
+    visualize_results(results_creteil_dense, "Creteil Dense")
 
 
 if __name__ == "__main__":
