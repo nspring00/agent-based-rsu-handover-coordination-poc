@@ -656,8 +656,9 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
 
         for vehicle in list(station.vehicles):
             # Check imperative HO timer
-            if self.next_ho_timer[vehicle.unique_id] > 0:
-                continue
+            # TODO investigate leaving_ho_timer
+            # if self.next_ho_timer[vehicle.unique_id] > 0:
+            #     continue
 
             # Based on trajectory suitability, decide if the vehicle should be handed over
             trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
