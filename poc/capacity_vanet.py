@@ -693,10 +693,9 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
                     break
                 no_overload = False
 
-            # TODO check if brek would perform better
-            # Skip if neighbor station has more load than current (considering hysteresis)
+            # Quit if neighbor station has more load than current (considering hysteresis)
             if neighbor_utilization > current.utilization - self.alt_ho_hysteresis:
-                continue
+                break
 
             success = neighbor_station.request_handover(vehicle)
             if not success:
@@ -1052,11 +1051,11 @@ def run_model(params, max_steps=None):
 
 # Define parameter ranges for DefaultOffloadingStrategy
 # overload_threshold_values = [0.9]
-overload_threshold_values = [0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
-leaving_threshold_values = [0, 0.05]
-imp_ho_timer_values = [0, 5, 10]
+overload_threshold_values = [0.6, 0.7, 0.8, 0.9, 1.0]
+leaving_threshold_values = [0]
+imp_ho_timer_values = [0]
 alt_ho_hysteresis_values = [0, 0.05, 0.1]
-alt_suitability_min_values = [0.15, 0.2, 0.25, 0.3, 0.35, 0.4]
+alt_suitability_min_values = [0.15, 0.2, 0.25, 0.3]
 
 
 # imp_ho_timer_values = [15]
@@ -1089,11 +1088,10 @@ def generate_default_strategy_configs(scenario, rsu_config):
 
 
 BEST_DEFAULT_CONFIG = {
-    'overload_threshold': 0.9,
+    'overload_threshold': 0.8,
     'leaving_threshold': 0,
-    'imp_ho_timer': 10,
     'alt_ho_hysteresis': 0.05,
-    'alt_suitability_min': 0.2,
+    'alt_suitability_min': 0.25,
 }
 
 
