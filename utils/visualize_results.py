@@ -10,137 +10,105 @@ def plot_distribution(models, means, stds, title, ylabel):
         x = np.linspace(max(0, mean - 3 * std), min(1, mean + 3 * std, 100))
         y = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mean) / std) ** 2)
         plt.plot(x, y, label=model, color=colors(i))
-    plt.title(title)
-    plt.xlabel('Value')
-    plt.ylabel(ylabel)
-    plt.legend()
+    plt.title(f'Distribution of {title}')
+    plt.xlabel(f'{ylabel} Value')
+    plt.ylabel('Density')
+    plt.legend(title="Models")
+    plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.show()
 
 
-def visualize_results(configs, title):
-    configs = [(filename, pd.read_csv(f"../results/{filename}.csv").sort_values(by='Model'), title) for filename, title
-               in
-               configs]
-
-    for filename, df, res_title in configs:
-        plot_ho_count(filename, df, res_title)
-
-    plot_metric(title, configs, 'GiniMean', f'{title}: Average Gini Values for Different Models', 'Gini Value',
-                qos=False, percentage=True),
-    plot_metric(title, configs, 'AvgQoSMean', f'{title}: Average QoS Values for Different Models', 'Avg QoS Value',
-                qos=True, percentage=True)
-    plot_metric(title, configs, 'MinQoSMean', f'{title}: Minimum QoS Values for Different Models', 'Min QoS Value',
-                qos=True, percentage=True)
+def custom_sort_key(model_name):
+    if '-Oracle' in model_name:
+        return 0, model_name
+    return 1, model_name
 
 
-def plot_metric(experiment, configs, metric_col, title, ylabel, qos=False, percentage=False):
+def visualize_results(configs, experiment_title, plot_ho=True):
+    configs = [(filename,
+                pd.read_csv(f"../results/{filename}.csv").sort_values(by='Model', key=lambda x: x.map(custom_sort_key)),
+                res_title)
+               for filename, res_title in configs]
+
+    if plot_ho:
+        for filename, df, res_title in configs:
+            plot_ho_count(filename, df, res_title)
+
+    plot_metric(experiment_title, configs, 'GiniMean', 'Average Load Distribution Equality (Gini Coefficient)',
+                'Gini Coefficient',
+                percentage=False)
+    plot_metric(experiment_title, configs, 'AvgQoSMean', 'Overall Network Performance (Average QoS)', 'Average QoS (%)',
+                percentage=True)
+    plot_metric(experiment_title, configs, 'MinQoSMean', 'Worst-Case Service Quality (Minimum QoS)', 'Minimum QoS (%)',
+                percentage=True)
+
+
+def plot_metric(experiment, configs, metric_col, title, ylabel, percentage=False):
     plt.figure(figsize=(10, 5))
 
     for i, (filename, df, res_title) in enumerate(configs):
         models = df['Model']
         metric_mean = df[metric_col]
 
-        first_group = models[models.str.startswith('Default')]
+        first_group = models[models.str.startswith('ARHC')]
         first_group_metric = metric_mean[:len(first_group)]
 
         last_group = models[len(first_group):]
         last_group_metric = metric_mean[len(first_group):]
 
         plt.plot(first_group, first_group_metric, label=f"Proposed Strategy - {res_title}", marker='o')
-
         plt.scatter(last_group, last_group_metric, label=f"Baseline Strategies - {res_title}", marker='s')
 
-    plt.title(title)
-    plt.xlabel('Model')
+    plt.title(f'{experiment}: {title}')
+    plt.xlabel('Handover Coordination Strategy')
     plt.ylabel(ylabel)
     if percentage:
         plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.0%}'))
-    plt.legend()
-    plt.grid(True)
-    plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels
+    plt.legend(title="Strategies")
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
-    filename = (experiment.strip().lower().replace(" ", "_") + "_" +
-                metric_col.lower().replace(" ", "_") + '.png')
+    filename = f'{experiment.strip().lower().replace(" ", "_")}_{metric_col.lower().replace(" ", "_")}.png'
     plt.savefig(filename, format="png", dpi=200)
-
     plt.show()
 
 
 def plot_ho_count(filename, df, title):
-    # Read the CSV file into a DataFrame
-    # df = pd.read_csv(filename)
-    #
-    # # Sort the DataFrame by the 'Model' column alphabetically
-    # df = df.sort_values(by='Model')
-
-    # Extract the relevant columns
     models = df['Model']
     ho_range = df['HO_Range']
     ho_load_balancing = df['HO_LB']
     ho_overload = df['HO_Overload']
-
     successful = df['HO_Total']
     failed = df['HO_Failed']
 
-    # Create a bar chart
     x = range(len(models))
-    width = 0.35  # Width of the bars
+    width = 0.35
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 5))
 
-    # Create stacked bars for successful handovers
-    ax.bar(x, ho_range, width, label='Range HO')
-    ax.bar(x, ho_load_balancing, width, bottom=ho_range, label='Load Balancing HO')
-    ax.bar(x, ho_overload, width, bottom=ho_range + ho_load_balancing, label='Overload HO')
+    ax.bar(x, ho_range, width, label='Range HO', color='tab:blue')
+    ax.bar(x, ho_load_balancing, width, bottom=ho_range, label='Load Balancing HO', color='tab:orange')
+    ax.bar(x, ho_overload, width, bottom=ho_range + ho_load_balancing, label='Overload HO', color='tab:green')
 
-    # Create bars for failed handovers
-    ax.bar([p + width for p in x], failed, width, label='Failed HO')
+    ax.bar([p + width for p in x], failed, width, label='Failed HO', color='tab:red')
 
-    # Add labels, title, and legend
-    ax.set_xlabel('Model')
-    ax.set_ylabel('HO Count')
-    ax.set_title(title + ': Successful and Failed Handovers per Model')
+    ax.set_title(f'{title}: Successful and Failed Handovers')
+    ax.set_xlabel('Handover Coordination Strategy')
+    ax.set_ylabel('Number of Handovers')
     ax.set_xticks([p + width / 2 for p in x])
     ax.set_xticklabels(models, rotation=45, ha='right')
-    ax.legend()
+    ax.legend(title="Handover Type")
+    ax.grid(True)
 
-    # Display the plot
     plt.tight_layout()
-
-    filename = filename + '_handovers.png'
-    plt.savefig(filename, format="png", dpi=200)
-
+    plt.savefig(f'{filename}_handovers.png', format="png", dpi=200)
     plt.show()
 
-    # Plot distributions
-    # Extract the relevant columns
-    models = df['Model']
-    avg_qos_mean = df['AvgQoSMean']
-    avg_qos_std = df['AvgQoSStd']
-    min_qos_mean = df['MinQoSMean']
-    min_qos_std = df['MinQoSStd']
-    gini_mean = df['GiniMean']
-    gini_std = df['GiniStd']
 
-    return
-
-    # Plot AvgQoSMean distribution
-    plot_distribution(models, avg_qos_mean, avg_qos_std, title + ': Average QoS Mean Distribution', 'Density')
-    # plot_beta_distribution(models, avg_qos_mean, avg_qos_std, 'Average QoS Mean Distribution', 'Density')
-
-    # Plot MinQoSMean distribution
-    plot_distribution(models, min_qos_mean, min_qos_std, title + ': Minimum QoS Mean Distribution', 'Density')
-    # plot_beta_distribution(models, min_qos_mean, min_qos_std, 'Minimum QoS Mean Distribution', 'Density')
-
-    # Plot GiniMean distribution
-    plot_distribution(models, gini_mean, gini_std, title + ': Gini Mean Distribution', 'Density')
-    # plot_beta_distribution(models, gini_mean, gini_std, 'Gini Mean Distribution', 'Density')
-
-
+# Example configurations for Sparse and Dense scenarios
 results_creteil_sparse = [
-    # ("results", "Demo")
     ("results_creteil-morning_4-full", "Morning Full Capacity"),
     ("results_creteil-morning_4-half", "Morning Half Capacity"),
     ("results_creteil-evening_4-full", "Evening Full Capacity"),
@@ -154,7 +122,6 @@ results_creteil_dense = [
     ("results_creteil-evening_9-full", "Evening Full Capacity"),
     ("results_creteil-evening_9-half", "Evening Half Capacity"),
     ("results_creteil-evening_9-quarter", "Evening Quarter Capacity"),
-
 ]
 
 results_creteil_dense_vs_sparse = [
@@ -166,10 +133,11 @@ results_creteil_dense_vs_sparse = [
 ]
 
 
+# Main function to visualize results
 def main():
-    # visualize_results(results_creteil_sparse, "Creteil Sparse")
-    # visualize_results(results_creteil_dense, "Creteil Dense")
-    visualize_results(results_creteil_dense_vs_sparse, "Creteil Sparse vs Dense")
+    # visualize_results(results_creteil_sparse, "Créteil Sparse")
+    # visualize_results(results_creteil_dense, "Créteil Dense")
+    visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
 
 
 if __name__ == "__main__":
