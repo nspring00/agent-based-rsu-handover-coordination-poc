@@ -11,6 +11,7 @@ from typing import Optional, List, Dict
 
 import mesa
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt, patches
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Rectangle, Circle
@@ -1241,6 +1242,7 @@ def investigate_min_qos(trace, rsu_config, strategy, filename='qos_grid'):
 
     np.save(filename + "_mean.npy", qos_mean_grid)
     np.save(filename + "_min.npy", qos_min_grid)
+    model.datacollector.get_model_vars_dataframe().to_csv("model_vars.csv", index=False)
 
 
 def plot_qos_grid(filename='qos_grid.npy', label="add"):
@@ -1282,12 +1284,40 @@ def plot_qos_grid(filename='qos_grid.npy', label="add"):
     plt.show()
 
 
+def plot_qos_versus_vehicle_count():
+    df = pd.read_csv("model_vars.csv")
+    df = df.iloc[1:1001].reset_index(drop=True)
+
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+
+    # Plot VehicleCount on the first y-axis
+    ax1.set_xlabel('Time')  # Assuming the index or x-axis represents time or similar
+    ax1.set_ylabel('VehicleCount', color='tab:blue')
+    ax1.plot(df.index, df['VehicleCount'], color='tab:blue', label='VehicleCount')
+    ax1.tick_params(axis='y', labelcolor='tab:blue')
+
+    # Create a second y-axis sharing the same x-axis
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('QoS Metrics', color='tab:red')
+    ax2.plot(df.index, df['MinQoS'], color='tab:red', label='MinQoS')
+    ax2.plot(df.index, df['AvgQoS'], color='tab:green', label='AvgQoS')
+    ax2.tick_params(axis='y', labelcolor='tab:red')
+
+    # Add legends
+    fig.legend(loc="lower left", bbox_to_anchor=(0.135, 0.12))
+
+    # Optionally, add legends to clarify the plots
+    plt.title('VehicleCount and MinQoS Over Time')
+    plt.show()
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.ERROR)
 
     # eval_strategy_params()
-    run_all_benchmarks()
+    # run_all_benchmarks()
     # run_benchmarks()
     # investigate_min_qos("creteil-morning", "9-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
     # plot_qos_grid("qos_grid_mean.npy", "Mean QoS")
     # plot_qos_grid("qos_grid_min.npy", "Minimum QoS")
+    plot_qos_versus_vehicle_count()
