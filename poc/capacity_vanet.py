@@ -253,7 +253,7 @@ class VECStationAgent(simple.VECStationAgent):
 
     # TODO fix inheritance stuff
     def __init__(self, unique_id, model: "VECModel", strategy: RSAgentStrategy, position, range_m, capacity,
-                 neighbors=None):
+                 neighbors=None, can_read_neighbor_load=False):
         super().__init__(unique_id, model, 0, 0, 0)
         self.strategy = strategy
         self.pos = position
@@ -265,6 +265,7 @@ class VECStationAgent(simple.VECStationAgent):
         self.load_threshold = 0.95
         self.vehicle_distance = None
         self.neighbor_load = {x.unique_id: 0 for x in self.neighbors}
+        self.can_read_neighbor_load = can_read_neighbor_load
 
     @property
     def load(self):
@@ -279,6 +280,8 @@ class VECStationAgent(simple.VECStationAgent):
         return len(self.vehicles)
 
     def get_neighbor_load(self, neighbor_id):
+        if self.can_read_neighbor_load:
+            return [x.load for x in self.neighbors if x.unique_id == neighbor_id][0]
         return self.neighbor_load[neighbor_id]
 
     def increment_neighbor_load(self, neighbor_id, load):
@@ -418,7 +421,7 @@ class VECModel(Model):
         self.vec_stations = []
         for i, rsu_config in enumerate(rsu_configs, start=1):
             station = VECStationAgent(10000 + i, self, self.rs_strategy, rsu_config.pos, rsu_config.range,
-                                      rsu_config.capacity)
+                                      rsu_config.capacity, can_read_neighbor_load=self.load_update_interval == 0)
             self.vec_stations.append(station)
             self.schedule.add(station)
 
@@ -479,7 +482,7 @@ class VECModel(Model):
             self.to_remove.append(v)
             self.to_remove.sort(key=lambda x: x.trace.last_ts, reverse=True)
 
-        if self.step_second % self.load_update_interval == 0:
+        if self.load_update_interval > 0 and self.step_second % self.load_update_interval == 0:
             self.update_shared_load_info()
 
         # TODO simplify??
@@ -1142,6 +1145,7 @@ def run_benchmarks(scenario, rsu_config):
     start = time.time()
 
     strategies = [
+        (scenario, rsu_config, "DefaultOracle", "default", 0, SEED, None, BEST_DEFAULT_CONFIG),
         (scenario, rsu_config, "DefaultShare01", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
         (scenario, rsu_config, "DefaultShare02", "default", 2, SEED, None, BEST_DEFAULT_CONFIG),
         (scenario, rsu_config, "DefaultShare03", "default", 3, SEED, None, BEST_DEFAULT_CONFIG),
