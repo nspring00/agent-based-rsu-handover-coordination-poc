@@ -35,18 +35,20 @@ def visualize_results(configs, experiment_title, plot_ho=True):
         for filename, df, res_title in configs:
             plot_ho_count(filename, df, res_title)
 
-    plot_metric(experiment_title, configs, 'GiniMean', 'Average Load Distribution Equality (Gini Coefficient)',
+    plot_metric(experiment_title, configs, 'GiniMean', 'Average Load Distribution Inequality (Gini Coefficient)',
                 'Gini Coefficient',
-                percentage=False)
+                percentage=False, is_gini=True)
     plot_metric(experiment_title, configs, 'AvgQoSMean', 'Overall Network Performance (Average QoS)', 'Average QoS (%)',
                 percentage=True)
     plot_metric(experiment_title, configs, 'MinQoSMean', 'Worst-Case Service Quality (Minimum QoS)', 'Minimum QoS (%)',
                 percentage=True)
 
 
-def plot_metric(experiment, configs, metric_col, title, ylabel, percentage=False):
+def plot_metric(experiment, configs, metric_col, title, ylabel, percentage=False, is_gini=False):
     plt.figure(figsize=(10, 5))
 
+    colors = plt.get_cmap('tab10', 10)  # Get a colormap with at least 10 colors
+    baseline_values = {}
     for i, (filename, df, res_title) in enumerate(configs):
         models = df['Model']
         metric_mean = df[metric_col]
@@ -57,8 +59,19 @@ def plot_metric(experiment, configs, metric_col, title, ylabel, percentage=False
         last_group = models[len(first_group):]
         last_group_metric = metric_mean[len(first_group):]
 
-        plt.plot(first_group, first_group_metric, label=f"Proposed Strategy - {res_title}", marker='o')
-        plt.scatter(last_group, last_group_metric, label=f"Baseline Strategies - {res_title}", marker='s')
+        plt.plot(first_group, first_group_metric, label=f"ARHC - {res_title}", marker='o', color=colors(i))
+
+        if is_gini:
+            part_title = res_title.split(' ')[0]
+            baseline_values[part_title] = (last_group, last_group_metric, f"Baseline - {part_title}")
+        else:
+            plt.scatter(last_group, last_group_metric, label=f"Baseline - {res_title}", marker='s',
+                        color=colors(i))
+
+    if is_gini:
+        for j, (baseline_group, baseline_metric, baseline_title) in enumerate(baseline_values.values()):
+            plt.scatter(baseline_group, baseline_metric, label=baseline_title, marker='s',
+                        color=colors(len(configs) + j))
 
     plt.title(f'{experiment}: {title}')
     plt.xlabel('Handover Coordination Strategy')
