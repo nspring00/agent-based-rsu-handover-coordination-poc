@@ -12,6 +12,8 @@ from typing import Optional, List, Dict
 import mesa
 import numpy as np
 from matplotlib import pyplot as plt, patches
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Rectangle, Circle
 from mesa import Agent, Model
 from mesa.space import ContinuousSpace
 
@@ -585,28 +587,34 @@ def compute_range_based_qos(model: VECModel) -> List[float]:
     return qos_list
 
 
+RANGE_QOS_ALPHA = 0.0231
+
+
+def compute_vehicle_qos(agent: VehicleAgent):
+    """
+    Compute QoS as the load of the station divided by its capacity if the vehicle is within range, otherwise 0.
+    """
+
+    range_factor = 1
+    dist = distance(agent.pos, agent.station.pos)
+    if not agent.station.is_vehicle_in_range(agent):
+        range_factor = math.exp(-RANGE_QOS_ALPHA * (dist - agent.station.range))
+
+    load_factor = 1
+    if agent.station.load > agent.station.capacity:
+        load_factor = agent.station.capacity / agent.station.load
+
+    return load_factor * range_factor
+
+
 def compute_qos(model: VECModel) -> List[float]:
     """
     Compute QoS as the load of the station divided by its capacity if the vehicle is within range, otherwise 0.
     """
 
-    alpha = 0.0231
-
-    def qos_internal(agent: VehicleAgent):
-        range_factor = 1
-        dist = distance(agent.pos, agent.station.pos)
-        if not agent.station.is_vehicle_in_range(agent):
-            range_factor = math.exp(-alpha * (dist - agent.station.range))
-
-        load_factor = 1
-        if agent.station.load > agent.station.capacity:
-            load_factor = agent.station.capacity / agent.station.load
-
-        return load_factor * range_factor
-
     qos_list = []
     for agent in model.schedule.get_agents_by_type(VehicleAgent):
-        qos = qos_internal(agent)
+        qos = compute_vehicle_qos(agent)
         qos_list.append(qos)
 
     return qos_list
@@ -1199,9 +1207,87 @@ def run_all_benchmarks():
         run_benchmarks(scenario, rsu_config)
 
 
+def investigate_min_qos(trace, rsu_config, strategy, filename='qos_grid'):
+    trace_loader = SIMULATION_CONFIGS[trace]["traces"]
+    rsu_config = SIMULATION_CONFIGS[trace][rsu_config]
+    model = VECModel(strategy, rsu_config, DynamicVehicleLoadGenerator(seed=SEED), trace_loader(),
+                     load_update_interval=1, seed=SEED)
+
+    grid_qos = defaultdict(list)
+
+    step = 0
+    while model.running:
+        step += 1
+        # if step > 500:
+        #     break
+
+        model.step()
+        vehicles = model.schedule.get_agents_by_type(VehicleAgent)
+
+        for vehicle in vehicles:
+            grid_x = round(vehicle.pos[0])
+            grid_y = round(vehicle.pos[1])
+            grid_pos = (grid_x, grid_y)
+            qos = compute_vehicle_qos(vehicle)
+            grid_qos_list = grid_qos[grid_pos]
+            grid_qos_list.append((step, qos))
+
+    qos_mean_grid = np.full((200, 200), np.nan)
+    qos_min_grid = np.full((200, 200), np.nan)
+
+    for (x, y), qos_list in grid_qos.items():
+        qos_mean_grid[y][x] = sum([q[1] for q in qos_list]) / len(qos_list)
+        qos_min_grid[y][x] = min([q[1] for q in qos_list])
+
+    np.save(filename + "_mean.npy", qos_mean_grid)
+    np.save(filename + "_min.npy", qos_min_grid)
+
+
+def plot_qos_grid(filename='qos_grid.npy', label="add"):
+    qos_grid = np.load(filename)
+
+    reduction_factor = 2
+    reduced_grid = np.zeros((qos_grid.shape[0] // reduction_factor, qos_grid.shape[1] // reduction_factor))
+    for i in range(0, qos_grid.shape[0], reduction_factor):
+        for j in range(0, qos_grid.shape[1], reduction_factor):
+            slice_ = qos_grid[i:i + reduction_factor, j:j + reduction_factor]
+            if np.isnan(slice_).all():
+                reduced_grid[i // reduction_factor, j // reduction_factor] = np.nan
+            else:
+                reduced_grid[i // reduction_factor, j // reduction_factor] = np.nanmin(slice_)
+
+    colors = [(1, 0, 0), (0.9, 0.9, 0.9)]  # Light gray to red
+    cmap = LinearSegmentedColormap.from_list('custom_gray_red', colors, N=256)
+
+    # Visualize the numpy array as a heatmap
+    fig, ax = plt.subplots()
+    ax.imshow(reduced_grid, cmap=cmap, interpolation='nearest')
+    plt.colorbar(ax.imshow(reduced_grid, cmap=cmap, interpolation='nearest'), label=label)
+    plt.title(label + " Heatmap")
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.invert_yaxis()
+
+    for i, rsu in enumerate(CRETEIL_4_RSU_FULL_CAPA_CONFIG):
+        rsu_id = 10001 + i
+        pos = (rsu.pos[0] / reduction_factor, rsu.pos[1] / reduction_factor)
+        color = VEC_STATION_COLORS[rsu_id]
+        ax.add_patch(Rectangle((pos[0] - 1, pos[1] - 1), 2, 2, facecolor=color))
+        ax.add_patch(Circle(pos, rsu.range / reduction_factor, color=color, fill=False, linestyle='--', alpha=0.7))
+
+    ax.set_aspect('equal')
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.ERROR)
 
     # eval_strategy_params()
     run_all_benchmarks()
     # run_benchmarks()
+    # investigate_min_qos("creteil-morning", "9-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
+    # plot_qos_grid("qos_grid_mean.npy", "Mean QoS")
+    # plot_qos_grid("qos_grid_min.npy", "Minimum QoS")
