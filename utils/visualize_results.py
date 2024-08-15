@@ -27,21 +27,21 @@ def visualize_results(configs, title):
         plot_ho_count(filename, df, res_title)
 
     plot_metric(title, configs, 'GiniMean', f'{title}: Average Gini Values for Different Models', 'Gini Value',
-                qos=True),
+                qos=False, percentage=True),
     plot_metric(title, configs, 'AvgQoSMean', f'{title}: Average QoS Values for Different Models', 'Avg QoS Value',
-                qos=True)
+                qos=True, percentage=True)
     plot_metric(title, configs, 'MinQoSMean', f'{title}: Minimum QoS Values for Different Models', 'Min QoS Value',
-                qos=True)
+                qos=True, percentage=True)
 
 
-def plot_metric(experiment, configs, metric_col, title, ylabel, qos=False):
+def plot_metric(experiment, configs, metric_col, title, ylabel, qos=False, percentage=False):
     plt.figure(figsize=(10, 5))
 
     for i, (filename, df, res_title) in enumerate(configs):
         models = df['Model']
         metric_mean = df[metric_col]
 
-        first_group = models[models.str.startswith('DefaultShare')]
+        first_group = models[models.str.startswith('Default')]
         first_group_metric = metric_mean[:len(first_group)]
 
         last_group = models[len(first_group):]
@@ -49,15 +49,13 @@ def plot_metric(experiment, configs, metric_col, title, ylabel, qos=False):
 
         plt.plot(first_group, first_group_metric, label=f"Proposed Strategy - {res_title}", marker='o')
 
-        if not qos and i == 0:
-            plt.scatter(last_group, last_group_metric, label="Baseline Strategies", marker='s', color='red')
-
-        if qos:
-            plt.scatter(last_group, last_group_metric, label=f"Baseline Strategies - {res_title}", marker='s')
+        plt.scatter(last_group, last_group_metric, label=f"Baseline Strategies - {res_title}", marker='s')
 
     plt.title(title)
     plt.xlabel('Model')
     plt.ylabel(ylabel)
+    if percentage:
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.0%}'))
     plt.legend()
     plt.grid(True)
     plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels
@@ -159,10 +157,19 @@ results_creteil_dense = [
 
 ]
 
+results_creteil_dense_vs_sparse = [
+    ("results_creteil-morning_4-full", "Sparse & Full Capacity"),
+    ("results_creteil-morning_4-half", "Sparse & Half Capacity"),
+    ("results_creteil-morning_9-full", "Dense & Full Capacity"),
+    ("results_creteil-morning_9-half", "Dense & Half Capacity"),
+    ("results_creteil-morning_9-quarter", "Dense & Quarter Capacity"),
+]
+
 
 def main():
     # visualize_results(results_creteil_sparse, "Creteil Sparse")
-    visualize_results(results_creteil_dense, "Creteil Dense")
+    # visualize_results(results_creteil_dense, "Creteil Dense")
+    visualize_results(results_creteil_dense_vs_sparse, "Creteil Sparse vs Dense")
 
 
 if __name__ == "__main__":
