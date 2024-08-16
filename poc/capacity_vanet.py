@@ -1308,28 +1308,46 @@ def plot_qos_grid(filename='qos_grid.npy', label="add"):
 
 def plot_qos_versus_vehicle_count():
     df = pd.read_csv("model_vars.csv")
-    df = df.iloc[1:1001].reset_index(drop=True)
+    df = df.iloc[1:-1].reset_index(drop=True)
 
-    fig, ax1 = plt.subplots(figsize=(10, 5))
+    fig, axes = plt.subplots(4, 1, figsize=(10, 20), sharex=True)
 
-    # Plot VehicleCount on the first y-axis
-    ax1.set_xlabel('Time')  # Assuming the index or x-axis represents time or similar
-    ax1.set_ylabel('VehicleCount', color='tab:blue')
-    ax1.plot(df.index, df['VehicleCount'], color='tab:blue', label='VehicleCount')
-    ax1.tick_params(axis='y', labelcolor='tab:blue')
+    # Plot VehicleCount on the first subplot
+    axes[0].set_ylabel('VehicleCount', color='tab:blue')
+    axes[0].plot(df.index, df['VehicleCount'], color='tab:blue', label='VehicleCount')
+    axes[0].tick_params(axis='y', labelcolor='tab:blue')
+    axes[0].set_title('VehicleCount Over Time')
+    axes[0].legend(loc="upper left")
 
-    # Create a second y-axis sharing the same x-axis
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('QoS Metrics', color='tab:red')
-    ax2.plot(df.index, df['MinQoS'], color='tab:red', label='MinQoS')
-    ax2.plot(df.index, df['AvgQoS'], color='tab:green', label='AvgQoS')
-    ax2.tick_params(axis='y', labelcolor='tab:red')
+    # Plot QoS Metrics on the second subplot
+    axes[1].set_ylabel('QoS Metrics')
+    axes[1].plot(df.index, df['MinQoS'], color='tab:red', label='MinQoS')
+    axes[1].plot(df.index, df['AvgQoS'], color='tab:green', label='AvgQoS')
+    axes[1].tick_params(axis='y')
+    axes[1].set_title('QoS Metrics Over Time')
+    axes[1].legend(loc="upper left")
 
-    # Add legends
-    fig.legend(loc="lower left", bbox_to_anchor=(0.135, 0.12))
+    # Plot TotalSuccessfulHandoverCount and TotalFailedHandoverCount on the third subplot
+    axes3 = axes[2].twinx()  # Create a twin y-axis for the third plot
+    axes[2].set_ylabel('TotalSuccessfulHandoverCount', color='tab:purple')
+    axes[2].plot(df.index, df['TotalSuccessfulHandoverCount'], color='tab:purple', label='Successful Handover')
+    axes[2].tick_params(axis='y', labelcolor='tab:purple')
+    axes3.set_ylabel('TotalFailedHandoverCount', color='tab:orange')
+    axes3.plot(df.index, df['TotalFailedHandoverCount'], color='tab:orange', label='Failed Handover')
+    axes3.tick_params(axis='y', labelcolor='tab:orange')
+    axes[2].set_title('Handover Counts Over Time')
+    axes[2].legend(loc="upper left")
+    axes3.legend(loc="upper right")
 
-    # Optionally, add legends to clarify the plots
-    plt.title('VehicleCount and MinQoS Over Time')
+    # Plot GiniLoad on the fourth subplot
+    axes[3].set_xlabel('Time')  # Assuming the index or x-axis represents time or similar
+    axes[3].set_ylabel('GiniLoad', color='tab:cyan')
+    axes[3].plot(df.index, df['GiniLoad'], color='tab:cyan', label='GiniLoad')
+    axes[3].tick_params(axis='y', labelcolor='tab:cyan')
+    axes[3].set_title('GiniLoad Over Time')
+    axes[3].legend(loc="upper left")
+
+    plt.tight_layout()  # Adjust layout to prevent overlap
     plt.show()
 
 
