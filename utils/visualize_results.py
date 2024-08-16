@@ -73,12 +73,14 @@ def plot_metric(experiment, configs, metric_col, title, ylabel, percentage=False
             plt.scatter(baseline_group, baseline_metric, label=baseline_title, marker='s',
                         color=colors(len(configs) + j))
 
+    legend_loc = "upper left" if is_gini else "lower left"
+
     plt.title(f'{experiment}: {title}')
     plt.xlabel('Handover Coordination Strategy')
     plt.ylabel(ylabel)
     if percentage:
         plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.0%}'))
-    plt.legend(title="Strategies")
+    plt.legend(title="Strategies & Configurations", loc=legend_loc)
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
@@ -107,12 +109,17 @@ def plot_ho_count(filename, df, title):
 
     ax.bar([p + width for p in x], failed, width, label='Failed HO', color='tab:red')
 
+    legend_loc = "lower right"
+    # If max of last 3 bars is more than double of first, put the legend to upper left
+    if np.max(successful[-3:]) > 2 * successful[0]:
+        legend_loc = "upper left"
+
     ax.set_title(f'{title}: Successful and Failed Handovers')
     ax.set_xlabel('Handover Coordination Strategy')
     ax.set_ylabel('Number of Handovers')
     ax.set_xticks([p + width / 2 for p in x])
     ax.set_xticklabels(models, rotation=45, ha='right')
-    ax.legend(title="Handover Type", loc="lower right")
+    ax.legend(title="Handover Type", loc=legend_loc)
     ax.grid(True)
 
     plt.tight_layout()
