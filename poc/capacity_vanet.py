@@ -677,9 +677,13 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
         stations_vehicles_suitability.sort(key=lambda x: x[0], reverse=True)
 
         for suitability, neighbor_station, vehicle in stations_vehicles_suitability:
-            no_overload = True
+            is_overload = False
             # if vehicle in already_gone:
             #     continue
+
+            # Automatically skip if the vehicle is out of range of the neighbor
+            if not neighbor_station.is_vehicle_in_range(vehicle):
+                continue
 
             neighbor_utilization = (current.get_neighbor_load(neighbor_station.unique_id) +
                                     vehicle.offloaded_load) / neighbor_station.capacity
@@ -691,20 +695,20 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
             if suitability < self.alt_suitability_min:
                 if current.utilization < self.overload_threshold:
                     break
-                no_overload = False
+                is_overload = True
 
             # Quit if neighbor station has more load than current (considering hysteresis)
             if neighbor_utilization > current.utilization - self.alt_ho_hysteresis:
                 break
 
-            success = neighbor_station.request_handover(vehicle)
+            success = neighbor_station.request_handover(vehicle, force=is_overload)
             if not success:
                 current.report_failed_handover()
                 continue
 
             logging.info(
                 f"Vehicle {vehicle.unique_id} is being handed over to VEC station {neighbor_station.unique_id} to balance load")
-            current.perform_handover(neighbor_station, vehicle, "load_balancing" if no_overload else "overload")
+            current.perform_handover(neighbor_station, vehicle, "overload" if is_overload else "load_balancing")
             # self.next_ho_timer[vehicle.unique_id] = self.imp_ho_timer
             # already_gone.add(vehicle)
 
@@ -1051,11 +1055,11 @@ def run_model(params, max_steps=None):
 
 # Define parameter ranges for DefaultOffloadingStrategy
 # overload_threshold_values = [0.9]
-overload_threshold_values = [0.6, 0.7, 0.8, 0.9, 1.0]
+overload_threshold_values = [0.7, 0.8, 0.9, 1.0]
 leaving_threshold_values = [0]
 imp_ho_timer_values = [0]
-alt_ho_hysteresis_values = [0, 0.05, 0.1]
-alt_suitability_min_values = [0.15, 0.2, 0.25, 0.3]
+alt_ho_hysteresis_values = [0, 0.05, 0.1, 0.15]
+alt_suitability_min_values = [0.15, 0.2, 0.25]
 
 
 # imp_ho_timer_values = [15]
@@ -1091,7 +1095,7 @@ BEST_DEFAULT_CONFIG = {
     'overload_threshold': 0.8,
     'leaving_threshold': 0,
     'alt_ho_hysteresis': 0.05,
-    'alt_suitability_min': 0.25,
+    'alt_suitability_min': 0.2,
 }
 
 
