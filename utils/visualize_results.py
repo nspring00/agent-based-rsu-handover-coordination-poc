@@ -112,7 +112,7 @@ def plot_ho_count(filename, df, title):
     ax.set_ylabel('Number of Handovers')
     ax.set_xticks([p + width / 2 for p in x])
     ax.set_xticklabels(models, rotation=45, ha='right')
-    ax.legend(title="Handover Type")
+    ax.legend(title="Handover Type", loc="lower right")
     ax.grid(True)
 
     plt.tight_layout()
@@ -148,8 +148,8 @@ results_creteil_dense_vs_sparse = [
 
 # Main function to visualize results
 def main():
-    # visualize_results(results_creteil_sparse, "Créteil Sparse")
-    # visualize_results(results_creteil_dense, "Créteil Dense")
+    visualize_results(results_creteil_sparse, "Créteil Sparse")
+    visualize_results(results_creteil_dense, "Créteil Dense")
     visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
 
 
