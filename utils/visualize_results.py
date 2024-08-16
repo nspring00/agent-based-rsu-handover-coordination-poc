@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import unidecode
 
 
 def plot_distribution(models, means, stds, title, ylabel):
@@ -85,7 +86,7 @@ def plot_metric(experiment, configs, metric_col, title, ylabel, percentage=False
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
-    filename = f'{experiment.strip().lower().replace(" ", "_")}_{metric_col.lower().replace(" ", "_")}.png'
+    filename = f'results_{unidecode.unidecode(experiment).strip().lower().replace(" ", "_")}_{metric_col.lower().replace(" ", "_")}.png'
     plt.savefig(filename, format="png", dpi=200)
     plt.show()
 
@@ -123,7 +124,7 @@ def plot_ho_count(filename, df, title):
     ax.grid(True)
 
     plt.tight_layout()
-    plt.savefig(f'{filename}_handovers.png', format="png", dpi=200)
+    plt.savefig(f'{unidecode.unidecode(filename)}_handovers.png', format="png", dpi=200)
     plt.show()
 
 
