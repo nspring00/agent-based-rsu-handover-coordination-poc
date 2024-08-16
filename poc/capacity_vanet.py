@@ -1095,7 +1095,7 @@ BEST_DEFAULT_CONFIG = {
     'overload_threshold': 0.8,
     'leaving_threshold': 0,
     'alt_ho_hysteresis': 0.05,
-    'alt_suitability_min': 0.2,
+    'alt_suitability_min': 0.25,
 }
 
 
