@@ -1230,9 +1230,9 @@ def run_all_benchmarks():
         run_benchmarks(scenario, rsu_config)
 
 
-def investigate_min_qos(trace, rsu_config, strategy, filename='qos_grid'):
+def investigate_min_qos(trace, rsu_config_name, strategy):
     trace_loader = SIMULATION_CONFIGS[trace]["traces"]
-    rsu_config = SIMULATION_CONFIGS[trace][rsu_config]
+    rsu_config = SIMULATION_CONFIGS[trace][rsu_config_name]
     model = VECModel(strategy, rsu_config, DynamicVehicleLoadGenerator(seed=SEED), trace_loader(),
                      load_update_interval=1, seed=SEED)
 
@@ -1262,15 +1262,19 @@ def investigate_min_qos(trace, rsu_config, strategy, filename='qos_grid'):
         qos_mean_grid[y][x] = sum([q[1] for q in qos_list]) / len(qos_list)
         qos_min_grid[y][x] = min([q[1] for q in qos_list])
 
+    filename = f"results_{trace}_{rsu_config_name}_heatmap_qos"
     np.save(filename + "_mean.npy", qos_mean_grid)
     np.save(filename + "_min.npy", qos_min_grid)
     model.datacollector.get_model_vars_dataframe().to_csv("model_vars.csv", index=False)
 
+    plot_qos_grid(trace, rsu_config_name, filename + "_min.npy", min=True)
 
-def plot_qos_grid(filename='qos_grid.npy', label="add"):
+
+def plot_qos_grid(trace, rsu_config_name, filename='qos_grid.npy', min=True):
     qos_grid = np.load(filename)
+    rsu_config = SIMULATION_CONFIGS[trace][rsu_config_name]
 
-    reduction_factor = 2
+    reduction_factor = 4
     reduced_grid = np.zeros((qos_grid.shape[0] // reduction_factor, qos_grid.shape[1] // reduction_factor))
     for i in range(0, qos_grid.shape[0], reduction_factor):
         for j in range(0, qos_grid.shape[1], reduction_factor):
@@ -1280,29 +1284,40 @@ def plot_qos_grid(filename='qos_grid.npy', label="add"):
             else:
                 reduced_grid[i // reduction_factor, j // reduction_factor] = np.nanmin(slice_)
 
-    colors = [(1, 0, 0), (0.9, 0.9, 0.9)]  # Light gray to red
-    cmap = LinearSegmentedColormap.from_list('custom_gray_red', colors, N=256)
+    min_qos_min_value = 0.6
+    assert np.nanmin(reduced_grid) >= min_qos_min_value, \
+        f"Error: reduced_grid contains values below the threshold of {min_qos_min_value}."
+
+    print(trace, rsu_config_name, "min MinQoS", np.nanmin(reduced_grid))
+
+    # colors = [(1, 0, 0), (0.9, 0.9, 0.9)]  # Light gray to red
+    # cmap = LinearSegmentedColormap.from_list('custom_gray_red', colors, N=256)
+
+    cmap = "plasma"
+    label = "Minimum QoS" if min else "Mean QoS"
 
     # Visualize the numpy array as a heatmap
     fig, ax = plt.subplots()
-    ax.imshow(reduced_grid, cmap=cmap, interpolation='nearest')
-    plt.colorbar(ax.imshow(reduced_grid, cmap=cmap, interpolation='nearest'), label=label)
-    plt.title(label + " Heatmap")
+    heatmap = ax.imshow(reduced_grid, cmap=cmap, interpolation='nearest', vmin=min_qos_min_value, vmax=1)
+    plt.colorbar(heatmap, label=label)
+    # plt.title(label + " Heatmap")
     ax.set_xlabel('')
     ax.set_ylabel('')
     ax.set_xticks([])
     ax.set_yticks([])
     ax.invert_yaxis()
 
-    for i, rsu in enumerate(CRETEIL_4_RSU_FULL_CAPA_CONFIG):
+    for i, rsu in enumerate(rsu_config):
         rsu_id = 10001 + i
         pos = (rsu.pos[0] / reduction_factor, rsu.pos[1] / reduction_factor)
         color = VEC_STATION_COLORS[rsu_id]
-        ax.add_patch(Rectangle((pos[0] - 1, pos[1] - 1), 2, 2, facecolor=color))
-        ax.add_patch(Circle(pos, rsu.range / reduction_factor, color=color, fill=False, linestyle='--', alpha=0.7))
+        ax.add_patch(Rectangle((pos[0] - 0.5, pos[1] - 0.5), 1, 1, facecolor=color))
+        ax.add_patch(Circle(pos, rsu.range / reduction_factor, color=color, fill=False, linestyle='--', alpha=1))
 
     ax.set_aspect('equal')
     plt.tight_layout()
+    filename = f"results_{trace}_{rsu_config_name}_{'min' if min else 'avg'}qos_heatmap.png"
+    plt.savefig(filename, format="png", dpi=200)
     plt.show()
 
 
@@ -1356,8 +1371,9 @@ if __name__ == "__main__":
 
     # eval_strategy_params()
     # run_all_benchmarks()
-    # run_benchmarks()
-    # investigate_min_qos("creteil-morning", "9-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
-    # plot_qos_grid("qos_grid_mean.npy", "Mean QoS")
-    # plot_qos_grid("qos_grid_min.npy", "Minimum QoS")
-    plot_qos_versus_vehicle_count()
+    # run_benchmarks("creteil-morning", "4-full")
+    # investigate_min_qos("creteil-morning", "4-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
+    plot_qos_grid("creteil-morning", "4-half", "results_creteil-morning_4-half_heatmap_qos_min.npy", min=True)
+    plot_qos_grid("creteil-morning", "9-quarter", "results_creteil-morning_9-quarter_heatmap_qos_min.npy", min=True)
+    # plot_qos_grid("qos_grid_min.npy", "Minimum QoS", min=True)
+    # plot_qos_versus_vehicle_count()
