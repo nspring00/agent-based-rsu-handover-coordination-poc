@@ -152,12 +152,12 @@ def plot_vehicle_count_per_timestep(morning=True):
     print(f"Average number of vehicles during experiment time: {avg_vehicles}")
     print(f"Maximum number of vehicles during experiment time: {max_vehicles}")
 
-    plt.figure(figsize=(16, 6))
+    plt.figure(figsize=(10, 5))
     plt.plot(times, counts, linestyle='-')
-    plt.xlabel('Time')
+    plt.xlabel('')
     plt.ylabel('Number of Vehicles')
     title_start = 'Créteil Morning' if morning else 'Créteil Evening'
-    plt.title(title_start + ' Trace: Number of Vehicles over Time')
+    # plt.title(title_start + ' Trace: Number of Vehicles over Time')
     plt.grid(True)
 
     # Add vertical lines at 7:15 AM and 8:45 AM
@@ -225,7 +225,7 @@ def plot_vehicle_positions_heatmap(morning=True):
     # heatmap = ax.imshow(reduced_grid, cmap="Wistia", interpolation='nearest')
     heatmap = ax.imshow(reduced_grid, cmap="plasma_r", interpolation='nearest')
     plt.colorbar(heatmap, label=label)
-    plt.title(title)
+    # plt.title(title)
     ax.set_xlabel('')
     ax.set_ylabel('')
     ax.set_xticks([])
@@ -247,7 +247,7 @@ def main():
 
     # trace = np.load('trace.npy', allow_pickle=True).item()
 
-    # plot_vehicle_count_per_timestep_full()
+    plot_vehicle_count_per_timestep_full()
     plot_vehicle_positions_heatmap(True)
     plot_vehicle_positions_heatmap(False)
 
