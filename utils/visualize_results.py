@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -102,7 +104,7 @@ def plot_ho_count(filename, df, title):
     x = range(len(models))
     width = 0.35
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(5, 4))
 
     ax.bar(x, ho_range, width, label='Range HO', color='tab:blue')
     ax.bar(x, ho_load_balancing, width, bottom=ho_range, label='Load Balancing HO', color='tab:orange')
@@ -126,6 +128,121 @@ def plot_ho_count(filename, df, title):
     plt.tight_layout()
     plt.savefig(f'{unidecode.unidecode(filename)}_handovers.png', format="png", dpi=200)
     plt.show()
+
+
+def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
+    filename = f"../results/runs/result_{scenario}_{rsu_config}_{strategy}_model_vars.csv"
+    df = pd.read_csv(filename)
+    df = df.iloc[1:-1].reset_index(drop=True)  # Remove first and last row
+
+    file_prefix = f"{scenario}_{rsu_config}_{strategy}"
+
+    # Time setup
+    start_time = datetime.strptime("07:15:00" if morning else "17:15:00", "%H:%M:%S")
+    experiment_start = start_time
+    experiment_end = experiment_start + timedelta(seconds=len(df) - 1)
+    times = [start_time + timedelta(seconds=i) for i in df.index]
+
+    def setup_time_axis(ax):
+        ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M'))
+        ax.xaxis.set_major_locator(plt.matplotlib.dates.MinuteLocator(byminute=[15, 30, 45, 0]))
+        plt.setp(ax.get_xticklabels(), rotation=0, ha='center')
+
+    # 1. Vehicle count over time
+    plt.figure(figsize=(8, 5))
+    plt.plot(times, df['VehicleCount'], label='Vehicle Count', color='tab:blue')
+    plt.title('Vehicle Count Over Time')
+    # plt.ylabel('Vehicle Count')
+    plt.grid(True)
+    setup_time_axis(plt.gca())
+    plt.tight_layout()
+    plt.savefig(f"{file_prefix}_vehicle_count.png", format="png", dpi=200)
+    plt.show()
+    plt.close()
+
+    # 2. Min QoS and Avg QoS over time
+    plt.figure(figsize=(8, 5))
+    plt.plot(times, df['MinQoS'], label='Min QoS', color='tab:green')
+    plt.plot(times, df['AvgQoS'], label='Avg QoS', color='tab:orange')
+    plt.title('Overall Network Performance (Min and Avg QoS)')
+    # plt.xlabel('Time')
+    plt.ylabel('QoS (%)')
+    plt.legend()
+    plt.grid(True)
+    setup_time_axis(plt.gca())
+    plt.tight_layout()
+    plt.savefig(f"{file_prefix}_min_avg_qos.png", format="png", dpi=200)
+    plt.show()
+    plt.close()
+
+    # 3. Min Range QoS and Min Load QoS over time
+    plt.figure(figsize=(8, 5))
+    plt.plot(times, df['MinQoS_RangeBased'], label='Min Range QoS', color='tab:red')
+    plt.plot(times, df['MinQoS_LoadBased'], label='Min Load QoS', color='tab:purple')
+    plt.title('Worst-Case Service Quality (Min Range and Load QoS)')
+    # plt.xlabel('Time')
+    plt.ylabel('QoS (%)')
+    plt.legend()
+    plt.grid(True)
+    setup_time_axis(plt.gca())
+    plt.tight_layout()
+    plt.savefig(f"{file_prefix}_min_range_load_qos.png", format="png", dpi=200)
+    plt.show()
+    plt.close()
+
+    # 4. Avg Range QoS and Avg Load QoS over time
+    plt.figure(figsize=(8, 5))
+    plt.plot(times, df['AvgQoS_RangeBased'], label='Avg Range QoS', color='tab:brown')
+    plt.plot(times, df['AvgQoS_LoadBased'], label='Avg Load QoS', color='tab:pink')
+    plt.title('Overall Network Performance (Avg Range and Load QoS)')
+    # plt.xlabel('Time')
+    plt.ylabel('QoS (%)')
+    plt.legend()
+    plt.grid(True)
+    setup_time_axis(plt.gca())
+    plt.tight_layout()
+    plt.savefig(f"{file_prefix}_avg_range_load_qos.png", format="png", dpi=200)
+    plt.show()
+    plt.close()
+
+    # 5. Gini Load over time
+    # smoothing_window = 15
+    # smoothed_gini = df['GiniLoad'].rolling(window=smoothing_window, min_periods=1).mean()
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(times, df['GiniLoad'], label='Gini Load', color='tab:cyan')
+    plt.title('Average Load Distribution Inequality (Gini Load)')
+    # plt.xlabel('Time')
+    plt.ylabel('Gini Coefficient')
+    plt.grid(True)
+    setup_time_axis(plt.gca())
+    plt.tight_layout()
+    plt.savefig(f"{file_prefix}_gini_load.png", format="png", dpi=200)
+    plt.show()
+    plt.close()
+
+    # 6. Successful HO and Failed HO over time using 2 y-axes
+    plt.figure(figsize=(8, 5))
+    ax1 = plt.gca()
+    ax2 = ax1.twinx()
+
+    ax1.plot(times, df['TotalSuccessfulHandoverCount'], label='Successful HO', color='tab:green')
+    ax2.plot(times, df['TotalFailedHandoverCount'], label='Failed HO', color='tab:red')
+
+    ax1.set_xlabel('Time')
+    ax1.set_ylabel('Successful HO Count', color='tab:green')
+    ax2.set_ylabel('Failed HO Count', color='tab:red')
+
+    ax1.grid(True)
+    plt.title('Successful and Failed Handover Count Over Time')
+    ax1.legend(loc='upper left')
+    ax2.legend(loc='upper right')
+
+    setup_time_axis(ax1)
+    plt.tight_layout()
+    plt.savefig(f"{file_prefix}_suc_failed_ho.png", format="png", dpi=200)
+    plt.show()
+    plt.close()
 
 
 # Example configurations for Sparse and Dense scenarios
@@ -159,6 +276,8 @@ def main():
     visualize_results(results_creteil_sparse, "Créteil Sparse")
     visualize_results(results_creteil_dense, "Créteil Dense")
     visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
+
+    plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s")
 
 
 if __name__ == "__main__":
