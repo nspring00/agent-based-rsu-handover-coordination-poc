@@ -413,7 +413,9 @@ class VECModel(Model):
                 "AvgQoS": VECModel.report_avg_qos,
                 "MinQoS": VECModel.report_min_qos,
                 "AvgQoS_LoadBased": VECModel.report_avg_qos_load_based,
+                "MinQoS_LoadBased": VECModel.report_min_qos_load_based,
                 "AvgQoS_RangeBased": VECModel.report_avg_qos_range_based,
+                "MinQoS_RangeBased": VECModel.report_min_qos_range_based,
                 "GiniLoad": VECModel.report_gini_load,
                 "VehicleCount": VECModel.report_vehicle_count,
             },
@@ -529,11 +531,19 @@ class VECModel(Model):
             return 1
         return sum(qos) / len(qos)
 
+    def report_min_qos_load_based(self):
+        qos = compute_load_based_qos(self)
+        return min(qos, default=1)
+
     def report_avg_qos_range_based(self):
         qos = compute_range_based_qos(self)
         if len(qos) == 0:
             return 1
         return sum(qos) / len(qos)
+
+    def report_min_qos_range_based(self):
+        qos = compute_range_based_qos(self)
+        return min(qos, default=1)
 
     def report_gini_load(self):
         loads = [station.load for station in self.vec_stations]
@@ -1033,7 +1043,7 @@ SIMULATION_CONFIGS = {
 def run_model(params, max_steps=None):
     logging.disable(logging.CRITICAL)
 
-    scenario, rsu_config, model_name, strategy_key, load_update_interval, seed, _, strategy_config = params
+    scenario, rsu_config_name, model_name, strategy_key, load_update_interval, seed, _, strategy_config = params
     strategy_class = STRATEGIES_DICT[strategy_key]
 
     if strategy_key == 'default':
@@ -1042,7 +1052,7 @@ def run_model(params, max_steps=None):
         strategy = strategy_class()
 
     trace_loader = SIMULATION_CONFIGS[scenario]["traces"]
-    rsu_config = SIMULATION_CONFIGS[scenario][rsu_config]
+    rsu_config = SIMULATION_CONFIGS[scenario][rsu_config_name]
 
     model = VECModel(strategy, rsu_config, DynamicVehicleLoadGenerator(seed=seed), trace_loader(),
                      load_update_interval=load_update_interval, seed=seed)
@@ -1050,6 +1060,11 @@ def run_model(params, max_steps=None):
     while model.running and (max_steps is None or step <= max_steps):
         model.step()
         step += 1
+
+    filename = f"../results/runs/result_{scenario}_{rsu_config_name}_{model_name.lower()}"
+    model.datacollector.get_model_vars_dataframe().to_csv(f"{filename}_model_vars.csv")
+    # model.datacollector.get_agent_vars_dataframe().to_csv(f"{filename}_agent_vars.csv")
+
     return params, extract_model_metrics(model, model_name)
 
 
