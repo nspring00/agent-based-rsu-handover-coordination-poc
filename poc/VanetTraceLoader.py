@@ -189,6 +189,57 @@ def plot_vehicle_count_per_timestep_full():
     plot_vehicle_count_per_timestep(morning=False)
 
 
+def plot_vehicle_positions_heatmap(morning=True):
+    vehicle_traces = get_traces(morning=morning, eval=True)
+    grid_position = defaultdict(int)
+
+    for trace in vehicle_traces.values():
+        positions = trace.trace[['vehicle_x', 'vehicle_y']].values
+        for x, y in positions:
+            grid_position[(round(x), round(y))] += 1
+
+    vehicle_count_grid = np.full((200, 200), np.nan)
+
+    for (x, y), count in grid_position.items():
+        vehicle_count_grid[y, x] = count
+
+    title = f"Vehicle Density Heatmap at Créteil Roundabout ({'Morning' if morning else "Evening"} Trace)"
+    label = "Cumulative Vehicle Count"
+
+    reduction_factor = 4
+    reduced_grid = np.zeros(
+        (vehicle_count_grid.shape[0] // reduction_factor, vehicle_count_grid.shape[1] // reduction_factor))
+
+    for i in range(0, vehicle_count_grid.shape[0], reduction_factor):
+        for j in range(0, vehicle_count_grid.shape[1], reduction_factor):
+            slice_ = vehicle_count_grid[i:i + reduction_factor, j:j + reduction_factor]
+            if np.isnan(slice_).all():
+                reduced_grid[i // reduction_factor, j // reduction_factor] = np.nan
+            else:
+                reduced_grid[i // reduction_factor, j // reduction_factor] = np.nansum(slice_)
+
+    # colors = [(0.9, 0.9, 0.9), (1, 0, 0)]  # Light gray to red
+    # cmap = LinearSegmentedColormap.from_list('custom_gray_red', colors, N=256)
+
+    fig, ax = plt.subplots()
+    # heatmap = ax.imshow(reduced_grid, cmap="Wistia", interpolation='nearest')
+    heatmap = ax.imshow(reduced_grid, cmap="plasma_r", interpolation='nearest')
+    plt.colorbar(heatmap, label=label)
+    plt.title(title)
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.invert_yaxis()
+
+    ax.set_aspect('equal')
+    plt.tight_layout()
+
+    filename = f"creteil_heatmap_{'morning' if morning else 'evening'}.png"
+    plt.savefig(filename, format="png", dpi=200)
+    plt.show()
+
+
 def main():
     # trace = map_trace(pd.read_csv(DATASET_PATH, sep=';'))
     # Save trace to file
@@ -196,7 +247,9 @@ def main():
 
     # trace = np.load('trace.npy', allow_pickle=True).item()
 
-    plot_vehicle_count_per_timestep_full()
+    # plot_vehicle_count_per_timestep_full()
+    plot_vehicle_positions_heatmap(True)
+    plot_vehicle_positions_heatmap(False)
 
 
 if __name__ == "__main__":
