@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import unidecode
+from matplotlib.ticker import PercentFormatter
 
 
 def plot_distribution(models, means, stds, title, ylabel):
@@ -137,6 +138,20 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
 
     file_prefix = f"{scenario}_{rsu_config}_{strategy}"
 
+    colors = plt.get_cmap('tab20', 20)
+
+    qos_colors = {
+        'MinQoS': colors(0),
+        'AvgQoS': colors(2),
+        'MinQoS_RangeBased': colors(1),
+        'MinQoS_LoadBased': colors(0),
+        'AvgQoS_RangeBased': colors(3),
+        'AvgQoS_LoadBased': colors(2),
+    }
+
+    def rolling(col, window=30):
+        return col.rolling(window=window, min_periods=1).mean()
+
     # Time setup
     start_time = datetime.strptime("07:15:00" if morning else "17:15:00", "%H:%M:%S")
     experiment_start = start_time
@@ -151,8 +166,8 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     # 1. Vehicle count over time
     plt.figure(figsize=(8, 5))
     plt.plot(times, df['VehicleCount'], label='Vehicle Count', color='tab:blue')
-    plt.title('Vehicle Count Over Time')
-    # plt.ylabel('Vehicle Count')
+    plt.title('Number of Vehicles Over Time')
+    plt.ylabel('Number of Vehicles')
     plt.grid(True)
     setup_time_axis(plt.gca())
     plt.tight_layout()
@@ -160,13 +175,16 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     plt.show()
     plt.close()
 
+    qos_roll_window = 10
+
     # 2. Min QoS and Avg QoS over time
     plt.figure(figsize=(8, 5))
-    plt.plot(times, df['MinQoS'], label='Min QoS', color='tab:green')
-    plt.plot(times, df['AvgQoS'], label='Avg QoS', color='tab:orange')
-    plt.title('Overall Network Performance (Min and Avg QoS)')
+    plt.plot(times, rolling(df['MinQoS'], qos_roll_window), label='Minimum QoS', color=qos_colors['MinQoS'])
+    plt.plot(times, rolling(df['AvgQoS'], qos_roll_window), label='Average QoS', color=qos_colors['AvgQoS'])
+    plt.title(f'Minimum and Average QoS Over Time - {qos_roll_window}s Smoothing')
     # plt.xlabel('Time')
     plt.ylabel('QoS (%)')
+    plt.gca().yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
     plt.legend()
     plt.grid(True)
     setup_time_axis(plt.gca())
@@ -177,11 +195,16 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
 
     # 3. Min Range QoS and Min Load QoS over time
     plt.figure(figsize=(8, 5))
-    plt.plot(times, df['MinQoS_RangeBased'], label='Min Range QoS', color='tab:red')
-    plt.plot(times, df['MinQoS_LoadBased'], label='Min Load QoS', color='tab:purple')
-    plt.title('Worst-Case Service Quality (Min Range and Load QoS)')
+    plt.plot(times, rolling(df['MinQoS_LoadBased'], qos_roll_window), label='Load-based Minimum QoS', color=qos_colors['MinQoS_LoadBased'])
+    plt.plot(times, rolling(df['AvgQoS_LoadBased'], qos_roll_window), label='Load-based Average QoS', color=qos_colors['AvgQoS_LoadBased'])
+    plt.plot(times, rolling(df['MinQoS_RangeBased'], qos_roll_window), label='Location-based Minimum QoS', color=qos_colors['MinQoS_RangeBased'])
+    plt.plot(times, rolling(df['AvgQoS_RangeBased'], qos_roll_window), label='Location-based Average QoS', color=qos_colors['AvgQoS_RangeBased'])
+
+    # plt.title('Worst-Case Service Quality (Min Range and Load QoS)')
+    plt.title(f'QoS Over Time - Load-based vs Location-based - {qos_roll_window}s Smoothing')
     # plt.xlabel('Time')
     plt.ylabel('QoS (%)')
+    plt.gca().yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
     plt.legend()
     plt.grid(True)
     setup_time_axis(plt.gca())
@@ -191,27 +214,29 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     plt.close()
 
     # 4. Avg Range QoS and Avg Load QoS over time
-    plt.figure(figsize=(8, 5))
-    plt.plot(times, df['AvgQoS_RangeBased'], label='Avg Range QoS', color='tab:brown')
-    plt.plot(times, df['AvgQoS_LoadBased'], label='Avg Load QoS', color='tab:pink')
-    plt.title('Overall Network Performance (Avg Range and Load QoS)')
-    # plt.xlabel('Time')
-    plt.ylabel('QoS (%)')
-    plt.legend()
-    plt.grid(True)
-    setup_time_axis(plt.gca())
-    plt.tight_layout()
-    plt.savefig(f"{file_prefix}_avg_range_load_qos.png", format="png", dpi=200)
-    plt.show()
-    plt.close()
+    # plt.figure(figsize=(8, 5))
+    # plt.plot(times, df['AvgQoS_RangeBased'], label='Avg Range QoS', color=qos_colors['AvgQoS_RangeBased'])
+    # plt.plot(times, df['AvgQoS_LoadBased'], label='Avg Load QoS', color=qos_colors['AvgQoS_LoadBased'])
+    # plt.title('Network Performance (Avg Range and Load QoS)')
+    # plt.title('Average QoS Over Time - Location-based vs Load-based')
+    # # plt.xlabel('Time')
+    # plt.ylabel('QoS (%)')
+    # plt.gca().yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
+    # plt.legend()
+    # plt.grid(True)
+    # setup_time_axis(plt.gca())
+    # plt.tight_layout()
+    # plt.savefig(f"{file_prefix}_avg_range_load_qos.png", format="png", dpi=200)
+    # plt.show()
+    # plt.close()
 
     # 5. Gini Load over time
-    # smoothing_window = 15
-    # smoothed_gini = df['GiniLoad'].rolling(window=smoothing_window, min_periods=1).mean()
+    smoothing_window = 30
+    smoothed_gini = rolling(df['GiniLoad'], 30)
 
     plt.figure(figsize=(8, 5))
-    plt.plot(times, df['GiniLoad'], label='Gini Load', color='tab:cyan')
-    plt.title('Average Load Distribution Inequality (Gini Load)')
+    plt.plot(times, smoothed_gini, label='Gini Load', color='tab:cyan')
+    plt.title('Load Distribution Inequality (Gini Coefficient) - 30s Smoothing')
     # plt.xlabel('Time')
     plt.ylabel('Gini Coefficient')
     plt.grid(True)
@@ -222,27 +247,27 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     plt.close()
 
     # 6. Successful HO and Failed HO over time using 2 y-axes
-    plt.figure(figsize=(8, 5))
-    ax1 = plt.gca()
-    ax2 = ax1.twinx()
-
-    ax1.plot(times, df['TotalSuccessfulHandoverCount'], label='Successful HO', color='tab:green')
-    ax2.plot(times, df['TotalFailedHandoverCount'], label='Failed HO', color='tab:red')
-
-    ax1.set_xlabel('Time')
-    ax1.set_ylabel('Successful HO Count', color='tab:green')
-    ax2.set_ylabel('Failed HO Count', color='tab:red')
-
-    ax1.grid(True)
-    plt.title('Successful and Failed Handover Count Over Time')
-    ax1.legend(loc='upper left')
-    ax2.legend(loc='upper right')
-
-    setup_time_axis(ax1)
-    plt.tight_layout()
-    plt.savefig(f"{file_prefix}_suc_failed_ho.png", format="png", dpi=200)
-    plt.show()
-    plt.close()
+    # plt.figure(figsize=(8, 5))
+    # ax1 = plt.gca()
+    # ax2 = ax1.twinx()
+    #
+    # ax1.plot(times, df['TotalSuccessfulHandoverCount'], label='Successful HO', color='tab:green')
+    # ax2.plot(times, df['TotalFailedHandoverCount'], label='Failed HO', color='tab:red')
+    #
+    # ax1.set_xlabel('Time')
+    # ax1.set_ylabel('Successful HO Count', color='tab:green')
+    # ax2.set_ylabel('Failed HO Count', color='tab:red')
+    #
+    # ax1.grid(True)
+    # plt.title('Successful and Failed Handover Count Over Time')
+    # ax1.legend(loc='upper left')
+    # ax2.legend(loc='upper right')
+    #
+    # setup_time_axis(ax1)
+    # plt.tight_layout()
+    # plt.savefig(f"{file_prefix}_suc_failed_ho.png", format="png", dpi=200)
+    # plt.show()
+    # plt.close()
 
 
 # Example configurations for Sparse and Dense scenarios
@@ -273,9 +298,9 @@ results_creteil_dense_vs_sparse = [
 
 # Main function to visualize results
 def main():
-    visualize_results(results_creteil_sparse, "Créteil Sparse")
-    visualize_results(results_creteil_dense, "Créteil Dense")
-    visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
+    # visualize_results(results_creteil_sparse, "Créteil Sparse")
+    # visualize_results(results_creteil_dense, "Créteil Dense")
+    # visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
 
     plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s")
 
