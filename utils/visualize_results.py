@@ -195,10 +195,14 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
 
     # 3. Min Range QoS and Min Load QoS over time
     plt.figure(figsize=(8, 5))
-    plt.plot(times, rolling(df['MinQoS_LoadBased'], qos_roll_window), label='Load-based Minimum QoS', color=qos_colors['MinQoS_LoadBased'])
-    plt.plot(times, rolling(df['AvgQoS_LoadBased'], qos_roll_window), label='Load-based Average QoS', color=qos_colors['AvgQoS_LoadBased'])
-    plt.plot(times, rolling(df['MinQoS_RangeBased'], qos_roll_window), label='Location-based Minimum QoS', color=qos_colors['MinQoS_RangeBased'])
-    plt.plot(times, rolling(df['AvgQoS_RangeBased'], qos_roll_window), label='Location-based Average QoS', color=qos_colors['AvgQoS_RangeBased'])
+    plt.plot(times, rolling(df['MinQoS_LoadBased'], qos_roll_window), label='Load-based Minimum QoS',
+             color=qos_colors['MinQoS_LoadBased'])
+    plt.plot(times, rolling(df['AvgQoS_LoadBased'], qos_roll_window), label='Load-based Average QoS',
+             color=qos_colors['AvgQoS_LoadBased'])
+    plt.plot(times, rolling(df['MinQoS_RangeBased'], qos_roll_window), label='Location-based Minimum QoS',
+             color=qos_colors['MinQoS_RangeBased'])
+    plt.plot(times, rolling(df['AvgQoS_RangeBased'], qos_roll_window), label='Location-based Average QoS',
+             color=qos_colors['AvgQoS_RangeBased'])
 
     # plt.title('Worst-Case Service Quality (Min Range and Load QoS)')
     plt.title(f'QoS Over Time - Load-based vs Location-based - {qos_roll_window}s Smoothing')
@@ -295,18 +299,26 @@ results_creteil_dense_vs_sparse = [
     ("results_creteil-morning_9-quarter", "Dense & Quarter Capacity"),
 ]
 
+results_creteil_failure = [
+    ("results_creteil-morning_3-fail-full", "Morning Full Capacity"),
+    ("results_creteil-morning_3-fail-half", "Morning Half Capacity"),
+    ("results_creteil-evening_3-fail-full", "Evening Full Capacity"),
+    ("results_creteil-evening_3-fail-half", "Evening Half Capacity"),
+]
+
 
 # Main function to visualize results
 def main():
     # visualize_results(results_creteil_sparse, "Créteil Sparse")
     # visualize_results(results_creteil_dense, "Créteil Dense")
     # visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
+    # visualize_results(results_creteil_failure, "Créteil Failure")
 
-    plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s", morning=True)
-    plot_metrics_over_time("creteil-evening", "4-full", "arhc-01s", morning=False)
-    plot_metrics_over_time("creteil-morning", "9-quarter", "arhc-01s", morning=True)
-    plot_metrics_over_time("creteil-evening", "9-full", "arhc-01s", morning=False)
-
+    # plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s", morning=True)
+    # plot_metrics_over_time("creteil-evening", "4-full", "arhc-01s", morning=False)
+    # plot_metrics_over_time("creteil-morning", "9-quarter", "arhc-01s", morning=True)
+    # plot_metrics_over_time("creteil-evening", "9-full", "arhc-01s", morning=False)
+    plot_metrics_over_time("creteil-evening", "3-fail-full", "arhc-01s", morning=True)
 
 
 if __name__ == "__main__":

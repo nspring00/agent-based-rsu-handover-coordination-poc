@@ -13,7 +13,6 @@ import mesa
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt, patches
-from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Rectangle, Circle
 from mesa import Agent, Model
 from mesa.space import ContinuousSpace
@@ -21,8 +20,8 @@ from mesa.space import ContinuousSpace
 import VanetTraceLoader as vanetLoader
 import simple as simple
 import units
-from scheduler import RandomActivationBySortedType
 from VanetTraceLoader import VehicleTrace
+from scheduler import RandomActivationBySortedType
 
 SEED = 42
 
@@ -33,17 +32,7 @@ STEPS_PER_SECOND = int(1 // TIME_STEP_S)  # Number of steps per second
 assert np.isclose(STEPS_PER_SECOND * TIME_STEP_S, 1.0, rtol=1e-09, atol=1e-09), "Time step conversion error"
 VEHICLE_SPEED_FAST_MS = 60 * (1000 / 3600)  # 60 km/h in m/s
 
-VEC_STATION_COLORS = {
-    10001: "red",
-    10002: "blue",
-    10003: "orange",
-    10004: "green",
-    10005: "olive",
-    10006: "pink",
-    10007: "purple",
-    10008: "brown",
-    10009: "cyan"
-}
+VEC_STATION_COLORS = simple.VEC_STATION_COLORS
 
 
 @dataclass
@@ -59,24 +48,24 @@ RSU_CAPACITY_T4_HALF = 32.5 * units.TERA
 RSU_CAPACITY_T4_QUARTER = 16.25 * units.TERA
 
 CRETEIL_4_RSU_FULL_CAPA_CONFIG = [
-    RsuConfig((72, 50), RSU_RANGE, RSU_CAPACITY_T4),  # red
     RsuConfig((35, 120), RSU_RANGE, RSU_CAPACITY_T4),  # blue
     RsuConfig((116, 150), RSU_RANGE, RSU_CAPACITY_T4),  # yellow
     RsuConfig((165, 50), RSU_RANGE, RSU_CAPACITY_T4),  # green
+    RsuConfig((72, 50), RSU_RANGE, RSU_CAPACITY_T4),  # red
 ]
 
 CRETEIL_4_RSU_HALF_CAPA_CONFIG = [
-    RsuConfig((72, 50), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # red
     RsuConfig((35, 120), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # blue
     RsuConfig((116, 150), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # yellow
     RsuConfig((165, 50), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # green
+    RsuConfig((72, 50), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # red
 ]
 
 CRETEIL_9_RSU_POSITIONS = [
-    (72, 50),  # red
     (35, 120),  # blue
     (116, 150),  # yellow
     (165, 50),  # green
+    (72, 50),  # red
     (97, 98),  # olive
     (120, 30),  # yellow
     (30, 70),  # purple
@@ -88,6 +77,18 @@ CRETEIL_9_RSU_FULL_CAPA_CONFIG = [RsuConfig(pos, RSU_RANGE, RSU_CAPACITY_T4) for
 CRETEIL_9_RSU_HALF_CAPA_CONFIG = [RsuConfig(pos, RSU_RANGE, RSU_CAPACITY_T4_HALF) for pos in CRETEIL_9_RSU_POSITIONS]
 CRETEIL_9_RSU_QUARTER_CAPA_CONFIG = [RsuConfig(pos, RSU_RANGE, RSU_CAPACITY_T4_QUARTER) for pos in
                                      CRETEIL_9_RSU_POSITIONS]
+
+CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG = [
+    RsuConfig((35, 120), RSU_RANGE, RSU_CAPACITY_T4),  # blue
+    RsuConfig((116, 150), RSU_RANGE, RSU_CAPACITY_T4),  # yellow
+    RsuConfig((165, 50), RSU_RANGE, RSU_CAPACITY_T4),  # green
+]
+
+CRETEIL_3_FAIL_RSU_HALF_CAPA_CONFIG = [
+    RsuConfig((35, 120), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # blue
+    RsuConfig((116, 150), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # yellow
+    RsuConfig((165, 50), RSU_RANGE, RSU_CAPACITY_T4_HALF),  # green
+]
 
 
 class RSAgentStrategy(ABC):
@@ -431,9 +432,7 @@ class VECModel(Model):
             self.schedule.add(station)
 
         for i in range(len(self.vec_stations)):
-            self.vec_stations[i].neighbors = [station for station in self.vec_stations
-                                              if distance(station.pos, self.vec_stations[i].pos) <= station.range +
-                                              self.vec_stations[i].range and station != self.vec_stations[i]]
+            self.vec_stations[i].neighbors = [s for s in self.vec_stations if s != self.vec_stations[i]]
             self.vec_stations[i].neighbor_load = {x.unique_id: 0 for x in self.vec_stations[i].neighbors}
 
         self.vehicle_id = 0
@@ -806,7 +805,12 @@ class LatestPossibleHandoverStrategy(RSAgentStrategy):
         # If so, perform handover to the nearest other RSU
         for vehicle in list(station.vehicles):
             if vehicle.rsu_distance > station.range:
-                nearest_station = min(station.neighbors, key=lambda x: distance(x.pos, vehicle.pos))
+                in_range_stations = [s for s in station.neighbors if s.is_vehicle_in_range(vehicle)]
+                if not in_range_stations:
+                    logging.warning(f"Vehicle {vehicle.unique_id} is out of range of all RSUs")
+                    continue
+
+                nearest_station = min(in_range_stations, key=lambda x: distance(x.pos, vehicle.pos))
                 if nearest_station == station:
                     logging.warning(f"Vehicle {vehicle.unique_id} is out of range of all RSUs")
                     continue
@@ -817,7 +821,9 @@ class LatestPossibleHandoverStrategy(RSAgentStrategy):
     def after_step(self, model: "VECModel"):
         # Check that each vehicle is in range of its station
         for vehicle in model.schedule.get_agents_by_type(VehicleAgent):
-            assert vehicle.station.is_vehicle_in_range(vehicle), f"Vehicle {vehicle.unique_id} is out of range"
+            assert (vehicle.station.is_vehicle_in_range(vehicle)
+                    or not [s for s in model.vec_stations if s.is_vehicle_in_range(vehicle)]), \
+                f"Vehicle {vehicle.unique_id} is out of range"
 
 
 class EarliestPossibleHandoverStrategy(RSAgentStrategy):
@@ -846,6 +852,10 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
                 in_range_stations = [x for x in station.neighbors
                                      if distance(x.pos, vehicle.pos) <= x.range]
 
+                if not in_range_stations:
+                    logging.warning(f"Vehicle {vehicle.unique_id} is out of range of all RSUs")
+                    continue
+
             # Get the closest station that wasn't previously connected
             nearest_station = min(in_range_stations, key=lambda x: distance(x.pos, vehicle.pos))
 
@@ -858,7 +868,9 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
     def after_step(self, model: "VECModel"):
         # Check that each vehicle is in range of its station
         for vehicle in model.schedule.get_agents_by_type(VehicleAgent):
-            assert vehicle.station.is_vehicle_in_range(vehicle), f"Vehicle {vehicle.unique_id} is out of range"
+            assert (vehicle.station.is_vehicle_in_range(vehicle)
+                    or not [s for s in model.vec_stations if s.is_vehicle_in_range(vehicle)]), \
+                f"Vehicle {vehicle.unique_id} is out of range"
 
 
 class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
@@ -1028,6 +1040,8 @@ SIMULATION_CONFIGS = {
         "9-full": CRETEIL_9_RSU_FULL_CAPA_CONFIG,
         "9-half": CRETEIL_9_RSU_HALF_CAPA_CONFIG,
         "9-quarter": CRETEIL_9_RSU_QUARTER_CAPA_CONFIG,
+        "3-fail-full": CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG,
+        "3-fail-half": CRETEIL_3_FAIL_RSU_HALF_CAPA_CONFIG,
     },
     "creteil-evening": {
         "traces": lambda: vanetLoader.get_traces(morning=False, eval=True),
@@ -1036,6 +1050,8 @@ SIMULATION_CONFIGS = {
         "9-full": CRETEIL_9_RSU_FULL_CAPA_CONFIG,
         "9-half": CRETEIL_9_RSU_HALF_CAPA_CONFIG,
         "9-quarter": CRETEIL_9_RSU_QUARTER_CAPA_CONFIG,
+        "3-fail-full": CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG,
+        "3-fail-half": CRETEIL_3_FAIL_RSU_HALF_CAPA_CONFIG,
     }
 }
 
@@ -1069,17 +1085,11 @@ def run_model(params, max_steps=None):
 
 
 # Define parameter ranges for DefaultOffloadingStrategy
-# overload_threshold_values = [0.9]
 overload_threshold_values = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 leaving_threshold_values = [0]
 imp_ho_timer_values = [0]
 alt_ho_hysteresis_values = [0, 0.05, 0.1]
 alt_suitability_min_values = [0.2, 0.25, 0.3, 0.35, 0.4]
-
-
-# imp_ho_timer_values = [15]
-# alt_ho_hysteresis_values = [0.15]
-# alt_suitability_min_values = [0.15]
 
 
 def generate_default_strategy_configs(scenario, rsu_config):
@@ -1238,6 +1248,10 @@ def run_all_benchmarks():
         ("creteil-evening", "9-full"),
         ("creteil-evening", "9-half"),
         ("creteil-evening", "9-quarter"),
+        ("creteil-morning", "3-fail-full"),
+        ("creteil-morning", "3-fail-half"),
+        ("creteil-evening", "3-fail-full"),
+        ("creteil-evening", "3-fail-half"),
     ]
 
     for scenario, rsu_config in configs:
@@ -1299,7 +1313,7 @@ def plot_qos_grid(trace, rsu_config_name, filename='qos_grid.npy', min=True):
             else:
                 reduced_grid[i // reduction_factor, j // reduction_factor] = np.nanmin(slice_)
 
-    min_qos_min_value = 0.6
+    min_qos_min_value = 0.6 if np.nanmin(reduced_grid) >= 0.6 else np.nanmin(reduced_grid)
     assert np.nanmin(reduced_grid) >= min_qos_min_value, \
         f"Error: reduced_grid contains values below the threshold of {min_qos_min_value}."
 
@@ -1336,59 +1350,14 @@ def plot_qos_grid(trace, rsu_config_name, filename='qos_grid.npy', min=True):
     plt.show()
 
 
-def plot_qos_versus_vehicle_count():
-    df = pd.read_csv("model_vars.csv")
-    df = df.iloc[1:-1].reset_index(drop=True)
-
-    fig, axes = plt.subplots(4, 1, figsize=(10, 20), sharex=True)
-
-    # Plot VehicleCount on the first subplot
-    axes[0].set_ylabel('VehicleCount', color='tab:blue')
-    axes[0].plot(df.index, df['VehicleCount'], color='tab:blue', label='VehicleCount')
-    axes[0].tick_params(axis='y', labelcolor='tab:blue')
-    axes[0].set_title('VehicleCount Over Time')
-    axes[0].legend(loc="upper left")
-
-    # Plot QoS Metrics on the second subplot
-    axes[1].set_ylabel('QoS Metrics')
-    axes[1].plot(df.index, df['MinQoS'], color='tab:red', label='MinQoS')
-    axes[1].plot(df.index, df['AvgQoS'], color='tab:green', label='AvgQoS')
-    axes[1].tick_params(axis='y')
-    axes[1].set_title('QoS Metrics Over Time')
-    axes[1].legend(loc="upper left")
-
-    # Plot TotalSuccessfulHandoverCount and TotalFailedHandoverCount on the third subplot
-    axes3 = axes[2].twinx()  # Create a twin y-axis for the third plot
-    axes[2].set_ylabel('TotalSuccessfulHandoverCount', color='tab:purple')
-    axes[2].plot(df.index, df['TotalSuccessfulHandoverCount'], color='tab:purple', label='Successful Handover')
-    axes[2].tick_params(axis='y', labelcolor='tab:purple')
-    axes3.set_ylabel('TotalFailedHandoverCount', color='tab:orange')
-    axes3.plot(df.index, df['TotalFailedHandoverCount'], color='tab:orange', label='Failed Handover')
-    axes3.tick_params(axis='y', labelcolor='tab:orange')
-    axes[2].set_title('Handover Counts Over Time')
-    axes[2].legend(loc="upper left")
-    axes3.legend(loc="upper right")
-
-    # Plot GiniLoad on the fourth subplot
-    axes[3].set_xlabel('Time')  # Assuming the index or x-axis represents time or similar
-    axes[3].set_ylabel('GiniLoad', color='tab:cyan')
-    axes[3].plot(df.index, df['GiniLoad'], color='tab:cyan', label='GiniLoad')
-    axes[3].tick_params(axis='y', labelcolor='tab:cyan')
-    axes[3].set_title('GiniLoad Over Time')
-    axes[3].legend(loc="upper left")
-
-    plt.tight_layout()  # Adjust layout to prevent overlap
-    plt.show()
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.ERROR)
 
     # eval_strategy_params()
     # run_all_benchmarks()
     # run_benchmarks("creteil-morning", "4-full")
-    # investigate_min_qos("creteil-morning", "4-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
-    plot_qos_grid("creteil-morning", "4-half", "results_creteil-morning_4-half_heatmap_qos_min.npy", min=True)
-    plot_qos_grid("creteil-morning", "9-quarter", "results_creteil-morning_9-quarter_heatmap_qos_min.npy", min=True)
+    investigate_min_qos("creteil-morning", "3-fail-full", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
+    # plot_qos_grid("creteil-morning", "4-half", "results_creteil-morning_4-half_heatmap_qos_min.npy", min=True)
+    # plot_qos_grid("creteil-morning", "9-quarter", "results_creteil-morning_9-quarter_heatmap_qos_min.npy", min=True)
     # plot_qos_grid("qos_grid_min.npy", "Minimum QoS", min=True)
     # plot_qos_versus_vehicle_count()

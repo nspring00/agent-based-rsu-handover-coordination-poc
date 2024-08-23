@@ -14,10 +14,10 @@ TIME_STEP_S = TIME_STEP_MS / 1000.0  # Time step in seconds
 VEHICLE_SPEED_FAST_MS = 60 * (1000 / 3600)  # 60 km/h in m/s
 
 VEC_STATION_COLORS = {
-    10001: "red",
-    10002: "blue",
-    10003: "orange",
-    10004: "green",
+    10001: "blue",
+    10002: "orange",
+    10003: "green",
+    10004: "red",
     10005: "olive",
     10006: "pink",
     10007: "purple",
