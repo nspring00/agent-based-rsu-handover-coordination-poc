@@ -302,8 +302,6 @@ results_creteil_dense_vs_sparse = [
 results_creteil_failure = [
     ("results_creteil-morning_3-fail-full", "Morning Full Capacity"),
     ("results_creteil-morning_3-fail-half", "Morning Half Capacity"),
-    ("results_creteil-evening_3-fail-full", "Evening Full Capacity"),
-    ("results_creteil-evening_3-fail-half", "Evening Half Capacity"),
 ]
 
 
@@ -312,13 +310,14 @@ def main():
     # visualize_results(results_creteil_sparse, "Créteil Sparse")
     # visualize_results(results_creteil_dense, "Créteil Dense")
     # visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
-    # visualize_results(results_creteil_failure, "Créteil Failure")
+    visualize_results(results_creteil_failure, "Créteil Failure")
 
     # plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s", morning=True)
     # plot_metrics_over_time("creteil-evening", "4-full", "arhc-01s", morning=False)
     # plot_metrics_over_time("creteil-morning", "9-quarter", "arhc-01s", morning=True)
     # plot_metrics_over_time("creteil-evening", "9-full", "arhc-01s", morning=False)
-    plot_metrics_over_time("creteil-evening", "3-fail-full", "arhc-01s", morning=True)
+    plot_metrics_over_time("creteil-morning", "3-fail-full", "arhc-01s", morning=True)
+    plot_metrics_over_time("creteil-morning", "3-fail-half", "arhc-01s", morning=True)
 
 
 if __name__ == "__main__":

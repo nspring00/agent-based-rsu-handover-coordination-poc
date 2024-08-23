@@ -1313,7 +1313,7 @@ def plot_qos_grid(trace, rsu_config_name, filename='qos_grid.npy', min=True):
             else:
                 reduced_grid[i // reduction_factor, j // reduction_factor] = np.nanmin(slice_)
 
-    min_qos_min_value = 0.6 if np.nanmin(reduced_grid) >= 0.6 else np.nanmin(reduced_grid)
+    min_qos_min_value = 0.6 if np.nanmin(reduced_grid) >= 0.6 else 0.15
     assert np.nanmin(reduced_grid) >= min_qos_min_value, \
         f"Error: reduced_grid contains values below the threshold of {min_qos_min_value}."
 
@@ -1356,6 +1356,7 @@ if __name__ == "__main__":
     # eval_strategy_params()
     # run_all_benchmarks()
     # run_benchmarks("creteil-morning", "4-full")
+    investigate_min_qos("creteil-morning", "3-fail-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
     investigate_min_qos("creteil-morning", "3-fail-full", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
     # plot_qos_grid("creteil-morning", "4-half", "results_creteil-morning_4-half_heatmap_qos_min.npy", min=True)
     # plot_qos_grid("creteil-morning", "9-quarter", "results_creteil-morning_9-quarter_heatmap_qos_min.npy", min=True)
