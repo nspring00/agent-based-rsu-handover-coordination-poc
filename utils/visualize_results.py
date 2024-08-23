@@ -165,8 +165,8 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
 
     # 1. Vehicle count over time
     plt.figure(figsize=(8, 5))
-    plt.plot(times, df['VehicleCount'], label='Vehicle Count', color='tab:blue')
-    plt.title('Number of Vehicles Over Time')
+    plt.plot(times, rolling(df['VehicleCount'], 10), label='Vehicle Count', color='tab:blue')
+    plt.title('Number of Vehicles Over Time - 10s Smoothing')
     plt.ylabel('Number of Vehicles')
     plt.grid(True)
     setup_time_axis(plt.gca())
@@ -302,7 +302,11 @@ def main():
     # visualize_results(results_creteil_dense, "Créteil Dense")
     # visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
 
-    plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s")
+    plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s", morning=True)
+    plot_metrics_over_time("creteil-evening", "4-full", "arhc-01s", morning=False)
+    plot_metrics_over_time("creteil-morning", "9-quarter", "arhc-01s", morning=True)
+    plot_metrics_over_time("creteil-evening", "9-full", "arhc-01s", morning=False)
+
 
 
 if __name__ == "__main__":
