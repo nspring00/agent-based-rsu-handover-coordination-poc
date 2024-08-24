@@ -4,7 +4,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import unidecode
+from matplotlib.patches import Rectangle, Circle
 from matplotlib.ticker import PercentFormatter
+
+from poc.capacity_vanet import get_grid, VEC_STATION_COLORS, RsuConfig, CRETEIL_4_RSU_FULL_CAPA_CONFIG, \
+    CRETEIL_9_RSU_FULL_CAPA_CONFIG, \
+    CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG
 
 
 def plot_distribution(models, means, stds, title, ylabel):
@@ -274,6 +279,32 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     # plt.close()
 
 
+def plot_rsu_config(rsu_config: list[RsuConfig], name: str):
+    background = get_grid()
+
+    fig, ax = plt.subplots(figsize=(5, 5))
+
+    ax.imshow(background, cmap='gray')
+
+    for i, conf in enumerate(rsu_config):
+        color = VEC_STATION_COLORS[i + 10001]
+        ax.add_patch(Rectangle((conf.pos[0] - 3, conf.pos[1] - 3), 6, 6, facecolor=color))
+        range_circle = Circle(conf.pos, conf.range, color=color, fill=False, linestyle='--')
+        ax.add_patch(range_circle)
+
+    ax.set_xlim(0, 200)
+    ax.set_ylim(0, 200)
+    ax.set_aspect('equal')
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    fig.tight_layout()
+    filename = f'rsu_config_{name}.png'
+    fig.savefig(filename, format='png', dpi=200)
+    plt.show()
+
+
 # Example configurations for Sparse and Dense scenarios
 results_creteil_sparse = [
     ("results_creteil-morning_4-full", "Morning Full Capacity"),
@@ -310,14 +341,18 @@ def main():
     # visualize_results(results_creteil_sparse, "Créteil Sparse")
     # visualize_results(results_creteil_dense, "Créteil Dense")
     # visualize_results(results_creteil_dense_vs_sparse, "Créteil Morning Sparse vs Dense", plot_ho=False)
-    visualize_results(results_creteil_failure, "Créteil Failure")
+    # visualize_results(results_creteil_failure, "Créteil Failure")
 
     # plot_metrics_over_time("creteil-morning", "4-half", "arhc-01s", morning=True)
     # plot_metrics_over_time("creteil-evening", "4-full", "arhc-01s", morning=False)
     # plot_metrics_over_time("creteil-morning", "9-quarter", "arhc-01s", morning=True)
     # plot_metrics_over_time("creteil-evening", "9-full", "arhc-01s", morning=False)
-    plot_metrics_over_time("creteil-morning", "3-fail-full", "arhc-01s", morning=True)
-    plot_metrics_over_time("creteil-morning", "3-fail-half", "arhc-01s", morning=True)
+    # plot_metrics_over_time("creteil-morning", "3-fail-full", "arhc-01s", morning=True)
+    # plot_metrics_over_time("creteil-morning", "3-fail-half", "arhc-01s", morning=True)
+
+    plot_rsu_config(CRETEIL_4_RSU_FULL_CAPA_CONFIG, "creteil_4")
+    plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
+    plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
 
 
 if __name__ == "__main__":
