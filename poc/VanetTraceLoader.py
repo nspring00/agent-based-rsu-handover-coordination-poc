@@ -6,7 +6,7 @@ from typing import Dict, Tuple
 
 from matplotlib import pyplot as plt
 
-from data_test import MIN_X, MAX_X, MIN_Y, MAX_Y
+from poc.data_test import MIN_X, MAX_X, MIN_Y, MAX_Y
 
 import numpy as np
 import pandas as pd

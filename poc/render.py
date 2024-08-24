@@ -1,12 +1,12 @@
 import math
 
 import solara
-import capacity_vanet
 import matplotlib.colors as mcolors
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Circle, FancyArrow
 
-from simple import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
+import poc.capacity_vanet as capacity_vanet
+from poc.simple import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
 
 
 def lighten_color(color, amount=0.5):

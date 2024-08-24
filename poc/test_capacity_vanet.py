@@ -3,7 +3,7 @@ import unittest
 
 from mesa import Model
 
-from capacity_vanet import is_moving_towards, VECModel, VECStationAgent, VehicleAgent, DefaultOffloadingStrategy, \
+from poc.capacity_vanet import is_moving_towards, VECModel, VECStationAgent, VehicleAgent, DefaultOffloadingStrategy, \
     StaticVehicleLoadGenerator
 
 

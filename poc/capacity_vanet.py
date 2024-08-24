@@ -11,17 +11,16 @@ from typing import Optional, List, Dict
 
 import mesa
 import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt, patches
 from matplotlib.patches import Rectangle, Circle
 from mesa import Agent, Model
 from mesa.space import ContinuousSpace
 
-import VanetTraceLoader as vanetLoader
-import simple as simple
-import units
-from VanetTraceLoader import VehicleTrace
-from scheduler import RandomActivationBySortedType
+import poc.units as units
+import poc.VanetTraceLoader as vanetLoader
+import poc.simple as simple
+from poc.VanetTraceLoader import VehicleTrace
+from poc.scheduler import RandomActivationBySortedType
 
 SEED = 42
 
