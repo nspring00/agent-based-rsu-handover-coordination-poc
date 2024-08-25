@@ -544,7 +544,7 @@ class VECModel(Model):
         return min(qos, default=1)
 
     def report_gini_load(self):
-        loads = [station.load for station in self.vec_stations]
+        loads = [min(1, station.utilization) for station in self.vec_stations]
         return compute_gini(loads)
 
     def report_vehicle_count(self):
