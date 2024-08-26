@@ -1116,10 +1116,10 @@ def generate_default_strategy_configs(scenario, rsu_config):
 
 
 BEST_DEFAULT_CONFIG = {
-    'overload_threshold': 0.8,
+    'overload_threshold': 0.7,
     'leaving_threshold': 0,
     'alt_ho_hysteresis': 0.05,
-    'alt_suitability_min': 0.25,
+    'alt_suitability_min': 0.3,
 }
 
 
