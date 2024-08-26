@@ -223,7 +223,7 @@ def plot_vehicle_positions_heatmap(morning=True):
 
     fig, ax = plt.subplots()
     # heatmap = ax.imshow(reduced_grid, cmap="Wistia", interpolation='nearest')
-    heatmap = ax.imshow(reduced_grid, cmap="plasma_r", interpolation='nearest')
+    heatmap = ax.imshow(reduced_grid, cmap="plasma_r", interpolation='nearest', vmax=6000)
     plt.colorbar(heatmap, label=label)
     # plt.title(title)
     ax.set_xlabel('')
