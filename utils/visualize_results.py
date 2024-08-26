@@ -110,7 +110,7 @@ def plot_ho_count(filename, df, title):
     x = range(len(models))
     width = 0.35
 
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(6, 4))
 
     ax.bar(x, ho_range, width, label='Range HO', color='tab:blue')
     ax.bar(x, ho_load_balancing, width, bottom=ho_range, label='Load Balancing HO', color='tab:orange')
