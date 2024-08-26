@@ -19,7 +19,7 @@ def plot_distribution(models, means, stds, title, ylabel):
         x = np.linspace(max(0, mean - 3 * std), min(1, mean + 3 * std, 100))
         y = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mean) / std) ** 2)
         plt.plot(x, y, label=model, color=colors(i))
-    plt.title(f'Distribution of {title}')
+    # plt.title(f'Distribution of {title}')
     plt.xlabel(f'{ylabel} Value')
     plt.ylabel('Density')
     plt.legend(title="Models")
@@ -84,7 +84,7 @@ def plot_metric(experiment, configs, metric_col, title, ylabel, percentage=False
 
     legend_loc = "upper left" if is_gini else "lower left"
 
-    plt.title(f'{experiment}: {title}')
+    # plt.title(f'{experiment}: {title}')
     plt.xlabel('Handover Coordination Strategy')
     plt.ylabel(ylabel)
     if percentage:
@@ -123,7 +123,7 @@ def plot_ho_count(filename, df, title):
     if np.max(successful[-3:]) > 2 * successful[0]:
         legend_loc = "upper left"
 
-    ax.set_title(f'{title}: Successful and Failed Handovers')
+    # ax.set_title(f'{title}: Successful and Failed Handovers')
     ax.set_xlabel('Handover Coordination Strategy')
     ax.set_ylabel('Number of Handovers')
     ax.set_xticks([p + width / 2 for p in x])
@@ -171,7 +171,7 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     # 1. Vehicle count over time
     plt.figure(figsize=(8, 5))
     plt.plot(times, rolling(df['VehicleCount'], 10), label='Vehicle Count', color='tab:blue')
-    plt.title('Number of Vehicles Over Time - 10s Smoothing')
+    # plt.title('Number of Vehicles Over Time - 10s Smoothing')
     plt.ylabel('Number of Vehicles')
     plt.grid(True)
     setup_time_axis(plt.gca())
@@ -186,7 +186,7 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     plt.figure(figsize=(8, 5))
     plt.plot(times, rolling(df['MinQoS'], qos_roll_window), label='Minimum QoS', color=qos_colors['MinQoS'])
     plt.plot(times, rolling(df['AvgQoS'], qos_roll_window), label='Average QoS', color=qos_colors['AvgQoS'])
-    plt.title(f'Minimum and Average QoS Over Time - {qos_roll_window}s Smoothing')
+    # plt.title(f'Minimum and Average QoS Over Time - {qos_roll_window}s Smoothing')
     # plt.xlabel('Time')
     plt.ylabel('QoS (%)')
     plt.gca().yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
@@ -210,7 +210,7 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
              color=qos_colors['AvgQoS_RangeBased'])
 
     # plt.title('Worst-Case Service Quality (Min Range and Load QoS)')
-    plt.title(f'QoS Over Time - Load-based vs Distance-based - {qos_roll_window}s Smoothing')
+    # plt.title(f'QoS Over Time - Load-based vs Distance-based - {qos_roll_window}s Smoothing')
     # plt.xlabel('Time')
     plt.ylabel('QoS (%)')
     plt.gca().yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
@@ -245,7 +245,7 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
 
     plt.figure(figsize=(8, 5))
     plt.plot(times, smoothed_gini, label='Gini Load', color='tab:cyan')
-    plt.title('Load Distribution Inequality (Gini Coefficient) - 30s Smoothing')
+    # plt.title('Load Distribution Inequality (Gini Coefficient) - 30s Smoothing')
     # plt.xlabel('Time')
     plt.ylabel('Gini Coefficient')
     plt.grid(True)
