@@ -204,13 +204,13 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
              color=qos_colors['MinQoS_LoadBased'])
     plt.plot(times, rolling(df['AvgQoS_LoadBased'], qos_roll_window), label='Load-based Average QoS',
              color=qos_colors['AvgQoS_LoadBased'])
-    plt.plot(times, rolling(df['MinQoS_RangeBased'], qos_roll_window), label='Location-based Minimum QoS',
+    plt.plot(times, rolling(df['MinQoS_RangeBased'], qos_roll_window), label='Distance-based Minimum QoS',
              color=qos_colors['MinQoS_RangeBased'])
-    plt.plot(times, rolling(df['AvgQoS_RangeBased'], qos_roll_window), label='Location-based Average QoS',
+    plt.plot(times, rolling(df['AvgQoS_RangeBased'], qos_roll_window), label='Distance-based Average QoS',
              color=qos_colors['AvgQoS_RangeBased'])
 
     # plt.title('Worst-Case Service Quality (Min Range and Load QoS)')
-    plt.title(f'QoS Over Time - Load-based vs Location-based - {qos_roll_window}s Smoothing')
+    plt.title(f'QoS Over Time - Load-based vs Distance-based - {qos_roll_window}s Smoothing')
     # plt.xlabel('Time')
     plt.ylabel('QoS (%)')
     plt.gca().yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
@@ -227,7 +227,7 @@ def plot_metrics_over_time(scenario, rsu_config, strategy, morning=True):
     # plt.plot(times, df['AvgQoS_RangeBased'], label='Avg Range QoS', color=qos_colors['AvgQoS_RangeBased'])
     # plt.plot(times, df['AvgQoS_LoadBased'], label='Avg Load QoS', color=qos_colors['AvgQoS_LoadBased'])
     # plt.title('Network Performance (Avg Range and Load QoS)')
-    # plt.title('Average QoS Over Time - Location-based vs Load-based')
+    # plt.title('Average QoS Over Time - Distance-based vs Load-based')
     # # plt.xlabel('Time')
     # plt.ylabel('QoS (%)')
     # plt.gca().yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
