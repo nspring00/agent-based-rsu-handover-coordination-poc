@@ -16,12 +16,11 @@ class StaticVehicleLoadGenerator(VehicleLoadGenerator):
 
 
 class DefaultOffloadingStrategy(RSAgentStrategy):
-    def __init__(self, overload_threshold=0.95, leaving_threshold=0.05, alt_ho_hysteresis=0.1, alt_suitability_min=0.2):
+    def __init__(self, overload_threshold=0.95, leaving_threshold=0.05, lb_util_hysteresis=0.1,
+                 alt_suitability_min=0.2):
         self.overload_threshold = overload_threshold
         self.leaving_threshold = leaving_threshold
-        # self.imp_ho_timer = imp_ho_timer
-        # TODO rename to util_hysteresis
-        self.alt_ho_hysteresis = alt_ho_hysteresis
+        self.lb_util_hysteresis = lb_util_hysteresis
         self.alt_suitability_min = alt_suitability_min
 
     def handle_offloading(self, station: VECStationAgent):
@@ -46,8 +45,6 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
                 self.attempt_handover_vehicle(station, vehicle, "range", force=not station.is_vehicle_in_range(vehicle))
 
     def handle_load_balancing_with_neighbors(self, current: VECStationAgent):
-        # already_gone = set()
-
         stations_with_vehicles = itertools.product(current.neighbors, current.vehicles)
         stations_vehicles_suitability = [
             (calculate_station_suitability(s, current.get_neighbor_load(s.unique_id), v), s, v)
@@ -76,7 +73,7 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
                 is_overload = True
 
             # Quit if neighbor station has more load than current (considering hysteresis)
-            if neighbor_utilization > current.utilization - self.alt_ho_hysteresis:
+            if neighbor_utilization > current.utilization - self.lb_util_hysteresis:
                 break
 
             success = neighbor_station.request_handover(vehicle, force=is_overload)
@@ -187,7 +184,6 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
         # If so, perform handover to closest
         for vehicle in list(station.vehicles):
             # Filter stations that are in range
-            # todo check on moving towards
             in_range_stations = [x for x in station.neighbors
                                  if x.unique_id not in self.previously_connected[vehicle.unique_id]
                                  and distance(x.pos, vehicle.pos) <= x.range
@@ -197,7 +193,6 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
                 if station.is_vehicle_in_range(vehicle):
                     continue
 
-                # TODO still somewhat bugged
                 # Special case: All stations in range are in previous connections
                 in_range_stations = [x for x in station.neighbors
                                      if distance(x.pos, vehicle.pos) <= x.range]
@@ -209,7 +204,6 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
             # Get the closest station that wasn't previously connected
             nearest_station = min(in_range_stations, key=lambda x: distance(x.pos, vehicle.pos))
 
-            # print(station.unique_id, "->", nearest_station.unique_id)
             logging.info(
                 f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
             station.perform_handover(nearest_station, vehicle)
