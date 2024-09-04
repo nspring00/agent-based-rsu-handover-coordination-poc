@@ -40,7 +40,7 @@ class TestVECStationAgent(unittest.TestCase):
         model: VECModel = MockModel()
         station = VECStationAgent(0, model, DefaultOffloadingStrategy(), (10, 10), 10, 10)
 
-        vehicle = VehicleAgent(0, model, None, StaticVehicleLoadGenerator())
+        vehicle = VehicleAgent(0, model, None, StaticVehicleLoadGenerator(), 1)
 
         vehicle.pos = (15, 10)
         self.assertAlmostEqual(station.calculate_vehicle_station_bearing(vehicle), 0)
