@@ -18,7 +18,6 @@ from mesa.space import ContinuousSpace
 
 import poc.units as units
 import poc.VanetTraceLoader as vanetLoader
-import poc.simple as simple
 from poc.VanetTraceLoader import VehicleTrace
 from poc.scheduler import RandomActivationBySortedType
 
@@ -31,7 +30,17 @@ STEPS_PER_SECOND = int(1 // TIME_STEP_S)  # Number of steps per second
 assert np.isclose(STEPS_PER_SECOND * TIME_STEP_S, 1.0, rtol=1e-09, atol=1e-09), "Time step conversion error"
 VEHICLE_SPEED_FAST_MS = 60 * (1000 / 3600)  # 60 km/h in m/s
 
-VEC_STATION_COLORS = simple.VEC_STATION_COLORS
+VEC_STATION_COLORS = {
+    10001: "blue",
+    10002: "orange",
+    10003: "green",
+    10004: "red",
+    10005: "olive",
+    10006: "pink",
+    10007: "purple",
+    10008: "brown",
+    10009: "cyan"
+}
 
 
 @dataclass
@@ -144,13 +153,12 @@ def is_moving_towards(vehicle_pos, vehicle_orientation, station_pos):
     return dot_product > 0
 
 
-class VehicleAgent(simple.VehicleAgent):
+class VehicleAgent(Agent):
     """A vehicle agent that follows a list of waypoints and calculates its angle."""
 
-    # TODO fix inheritance stuff
     def __init__(self, unique_id, model: "VECModel", trace: Optional[vanetLoader.VehicleTrace],
                  load_gen: VehicleLoadGenerator):
-        super().__init__(unique_id, model, 0, [])
+        super().__init__(unique_id, model)
         self.offloaded_load = 0
         self.invocation = 0
         self.trace_i = 0
@@ -182,17 +190,10 @@ class VehicleAgent(simple.VehicleAgent):
         self.offloaded_load = self.load_gen.compute_offloaded_load(self)
 
     def step(self):
-        # TODO check there are no "holes" in timestamp list for all vehicles
         if self.invocation % STEPS_PER_SECOND == 0:
             self.do_step()
 
         self.invocation += 1
-
-        # external_ts = int(self.ts * TIME_STEP_S)
-        # if self.trace.first_ts <= external_ts <= self.trace.last_ts:
-        #     self.do_step(external_ts)
-        # if external_ts > self.trace.last_ts:
-        #     self.active = False
 
     def count_nearby_vehicles(self) -> int:
         count = 0
@@ -251,13 +252,12 @@ def calculate_station_suitability(station: "VECStationAgent", station_load: floa
     return suitability
 
 
-class VECStationAgent(simple.VECStationAgent):
+class VECStationAgent(Agent):
     """A VEC station agent with a communication range."""
 
-    # TODO fix inheritance stuff
     def __init__(self, unique_id, model: "VECModel", strategy: RSAgentStrategy, position, range_m, capacity,
                  neighbors=None, can_read_neighbor_load=False):
-        super().__init__(unique_id, model, 0, 0, 0)
+        super().__init__(unique_id, model)
         self.strategy = strategy
         self.pos = position
         self.range = range_m
@@ -339,15 +339,12 @@ class VECStationAgent(simple.VECStationAgent):
         The target station can accept or reject the request based on its own criteria.
         """
 
-        # TODO for now handover can be forced
         if not force:
             # Check if the vehicle is 1. in range and 2. the RSU has enough capacity
             if distance(self.pos, vehicle.pos) > self.range:
                 return False
             if self.load + vehicle.offloaded_load > self.capacity:
                 return False
-
-            # TODO: Implement more sophisticated check
 
         return True
 
@@ -630,32 +627,21 @@ def compute_qos(model: VECModel) -> List[float]:
 
 
 class DefaultOffloadingStrategy(RSAgentStrategy):
-    def __init__(self, overload_threshold=0.95, leaving_threshold=0.05, imp_ho_timer=10, alt_ho_hysteresis=0.1,
-                 alt_suitability_min=0.2):
+    def __init__(self, overload_threshold=0.95, leaving_threshold=0.05, alt_ho_hysteresis=0.1, alt_suitability_min=0.2):
         self.overload_threshold = overload_threshold
         self.leaving_threshold = leaving_threshold
         # self.imp_ho_timer = imp_ho_timer
         # TODO rename to util_hysteresis
         self.alt_ho_hysteresis = alt_ho_hysteresis
         self.alt_suitability_min = alt_suitability_min
-        # self.next_ho_timer = defaultdict(int)
 
     def handle_offloading(self, station: VECStationAgent):
-
-        # Step 0: Decrement HO timers
-        # for vehicle in station.vehicles:
-        #     # TODO remove HO timer
-        #     self.next_ho_timer[vehicle.unique_id] -= 1
 
         # Step 1: Hand-over vehicles that are leaving anyway
         self.handle_vehicle_leaving_range(station)
 
         # Step 2: Hand-over vehicles to neighboring stations considering load balancing (also handles overload)
         self.handle_load_balancing_with_neighbors(station)
-
-        # Step 3: Manage overload by prioritizing vehicles for handover
-        # if station.load > station.load_threshold * station.capacity:
-        #     self.manage_overload(station)
 
     def handle_vehicle_leaving_range(self, station):
         """
@@ -665,11 +651,6 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
         """
 
         for vehicle in list(station.vehicles):
-            # Check imperative HO timer
-            # TODO investigate leaving_ho_timer
-            # if self.next_ho_timer[vehicle.unique_id] > 0:
-            #     continue
-
             # Based on trajectory suitability, decide if the vehicle should be handed over
             trajectory_suitability = calculate_trajectory_suitability(station, vehicle)
             if trajectory_suitability <= self.leaving_threshold:
@@ -717,28 +698,10 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
             logging.info(
                 f"Vehicle {vehicle.unique_id} is being handed over to VEC station {neighbor_station.unique_id} to balance load")
             current.perform_handover(neighbor_station, vehicle, "overload" if is_overload else "load_balancing")
-            # self.next_ho_timer[vehicle.unique_id] = self.imp_ho_timer
-            # already_gone.add(vehicle)
 
             # Recursive call to perform potentially multiple load-balancing related handovers
             self.handle_load_balancing_with_neighbors(current)
             break
-
-    # def manage_overload(self, station: VECStationAgent):
-
-    # Iterate through vehicles sorted by trajectory suitability ascending, selects the least suitable first
-    # # TODO what if other station is also overloaded???
-    # for vehicle in sorted(station.vehicles, key=lambda x: calculate_trajectory_suitability(station, x),
-    #                       reverse=False):
-    #     if self.next_ho_timer[vehicle.unique_id] > 0:
-    #         continue
-    #
-    #     if station.load < station.load_threshold * station.capacity:
-    #         return
-    #
-    #     logging.info(f"Vehicle {vehicle.unique_id} is being considered for handover due to overload")
-    #
-    #     self.attempt_handover_vehicle(station, vehicle, "overload", force=True)
 
     def attempt_handover_vehicle(self, station: VECStationAgent, vehicle: VehicleAgent, cause, force=False) -> bool:
 
@@ -768,7 +731,6 @@ class DefaultOffloadingStrategy(RSAgentStrategy):
 
             station.perform_handover(neighbor, vehicle, cause)
             logging.info(f"Vehicle {vehicle.unique_id} handed over to VEC station {neighbor.unique_id}")
-            # self.next_ho_timer[vehicle.unique_id] = self.imp_ho_timer
 
             return True
 
@@ -883,7 +845,6 @@ class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
         # If so, perform handover to closest
         for vehicle in list(station.vehicles):
             # Filter stations that are in range
-            # todo check on moving towards
             in_range_stations = [x for x in station.neighbors
                                  if x.unique_id not in self.previously_connected[vehicle.unique_id]
                                  and distance(x.pos, vehicle.pos) <= x.range]
@@ -894,7 +855,6 @@ class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
             # Get the closest station that wasn't previously connected
             nearest_station = min(in_range_stations, key=lambda x: distance(x.pos, vehicle.pos))
 
-            # print(station.unique_id, "->", nearest_station.unique_id)
             logging.info(
                 f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
             station.perform_handover(nearest_station, vehicle)
@@ -1354,9 +1314,9 @@ if __name__ == "__main__":
 
     # eval_strategy_params()
     # run_all_benchmarks()
-    # run_benchmarks("creteil-morning", "4-full")
-    investigate_min_qos("creteil-morning", "3-fail-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
-    investigate_min_qos("creteil-morning", "3-fail-full", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
+    run_benchmarks("creteil-morning", "9-half")
+    # investigate_min_qos("creteil-morning", "3-fail-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
+    # investigate_min_qos("creteil-morning", "3-fail-full", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
     # plot_qos_grid("creteil-morning", "4-half", "results_creteil-morning_4-half_heatmap_qos_min.npy", min=True)
     # plot_qos_grid("creteil-morning", "9-quarter", "results_creteil-morning_9-quarter_heatmap_qos_min.npy", min=True)
     # plot_qos_grid("qos_grid_min.npy", "Minimum QoS", min=True)

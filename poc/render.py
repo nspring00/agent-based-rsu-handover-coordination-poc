@@ -5,8 +5,7 @@ import matplotlib.colors as mcolors
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Circle, FancyArrow
 
-import poc.capacity_vanet as capacity_vanet
-from poc.simple import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
+from poc.capacity_vanet import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
 
 
 def lighten_color(color, amount=0.5):
@@ -209,7 +208,7 @@ def render_vehicle_loads(model: VECModel):
 
     last_step_loads = filtered_loads.unstack(level="AgentID").tail(1).T
     last_step_loads = last_step_loads.dropna()
-    vehicle_dict = {agent.unique_id: agent for agent in model.schedule.get_agents_by_type(capacity_vanet.VehicleAgent)}
+    vehicle_dict = {agent.unique_id: agent for agent in model.schedule.get_agents_by_type(VehicleAgent)}
     colors = [VEC_STATION_COLORS[vehicle_dict[vehicle_id].station.unique_id] for vehicle_id in last_step_loads.index]
     # last_step_loads.plot(kind='bar', ax=ax, color=colors)
     ax.bar(last_step_loads.index, last_step_loads.values.flatten(), color=colors)
