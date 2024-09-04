@@ -5,7 +5,7 @@ import matplotlib.colors as mcolors
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Circle, FancyArrow
 
-from poc.capacity_vanet import VehicleAgent, VEC_STATION_COLORS, VECStationAgent, VECModel
+from poc.model import VehicleAgent, VECStationAgent, VECModel
 
 
 def lighten_color(color, amount=0.5):
@@ -217,3 +217,16 @@ def render_vehicle_loads(model: VECModel):
     ax.set_xlabel('Vehicle ID')
     ax.set_ylabel('Load')
     solara.FigureMatplotlib(fig)
+
+
+VEC_STATION_COLORS = {
+    10001: "blue",
+    10002: "orange",
+    10003: "green",
+    10004: "red",
+    10005: "olive",
+    10006: "pink",
+    10007: "purple",
+    10008: "brown",
+    10009: "cyan"
+}

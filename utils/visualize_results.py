@@ -7,9 +7,11 @@ import unidecode
 from matplotlib.patches import Rectangle, Circle
 from matplotlib.ticker import PercentFormatter
 
-from poc.capacity_vanet import get_grid, VEC_STATION_COLORS, RsuConfig, CRETEIL_4_RSU_FULL_CAPA_CONFIG, \
-    CRETEIL_9_RSU_FULL_CAPA_CONFIG, \
+from poc.capacity_vanet import get_grid
+from poc.render import VEC_STATION_COLORS
+from poc.scenarios import CRETEIL_4_RSU_FULL_CAPA_CONFIG, CRETEIL_9_RSU_FULL_CAPA_CONFIG, \
     CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG
+from poc.base import RsuConfig
 
 
 def plot_distribution(models, means, stds, title, ylabel):
