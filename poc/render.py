@@ -1,50 +1,10 @@
 import math
 
 import solara
-import matplotlib.colors as mcolors
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Circle, FancyArrow
 
 from poc.model import VehicleAgent, VECStationAgent, VECModel
-
-
-def lighten_color(color, amount=0.5):
-    try:
-        c = mcolors.cnames[color]
-    except KeyError:
-        c = color
-    c = mcolors.to_rgb(c)
-    return mcolors.to_hex([min(1, max(0, c[i] + (1 - c[i]) * amount)) for i in range(3)])
-
-
-def agent_portrayal(agent):
-    # Render vehicle agent
-    if isinstance(agent, VehicleAgent):
-        if hasattr(agent, 'active') and not agent.active:
-            return {
-                "color": "black",
-                "size": 50,
-            }
-        return {
-            "color": VEC_STATION_COLORS[agent.station.unique_id],
-            "size": 50,
-        }
-
-    # TODO check how to get size/shape working
-    # Render VEC station agent
-    if isinstance(agent, VECStationAgent):
-        portrayal = {
-            # "shape": "rect",
-            "color": VEC_STATION_COLORS[agent.unique_id],
-            "size": 100,
-            # "filled": "true",
-            # "layer": 0,
-            # "w": 1,
-            # "h": 1,
-        }
-        return portrayal
-
-    assert False
 
 
 def render_model_with_bg(background):
@@ -55,21 +15,7 @@ def render_model(model: VECModel, background=None):
     fig = Figure()
     ax = fig.subplots()
 
-    if background is None:
-
-        min_x = min(waypoint[0] for waypoint in model.waypoints)
-        max_x = max(waypoint[0] for waypoint in model.waypoints)
-        min_y = min(waypoint[1] for waypoint in model.waypoints)
-        max_y = max(waypoint[1] for waypoint in model.waypoints)
-        road_width = max_x - min_x
-        road_height = max_y - min_y
-
-        # Draw the road
-        road = Rectangle((min_x, min_y), road_width, road_height, linewidth=3, edgecolor='gray', facecolor='none')
-        ax.add_patch(road)
-
-    else:
-        ax.imshow(background, cmap='gray')
+    ax.imshow(background, cmap='gray')
 
     # Draw all agents
     for agent in model.agents:
@@ -84,10 +30,6 @@ def render_model(model: VECModel, background=None):
             ax.add_patch(Rectangle((agent.pos[0] - 3, agent.pos[1] - 3), 6, 6, facecolor=color))
             range_circle = Circle(agent.pos, agent.range, color=color, fill=False, linestyle='--')
             ax.add_patch(range_circle)
-            # range_circle = Circle(agent.pos, agent.distance_threshold * agent.range, color=color, fill=False,
-            #                       linestyle='--',
-            #                       alpha=0.5)
-            # ax.add_patch(range_circle)
 
     ax.set_xlim(0, model.width)
     ax.set_ylim(0, model.height)
@@ -135,8 +77,9 @@ def render_distance_chart(model: VECModel):
     filtered_distances = data.loc[data.index.get_level_values('AgentID') >= 10000]
     df = filtered_distances.unstack(level="AgentID")
 
-    for station_id, color in VEC_STATION_COLORS.items():
-        assert station_id in df.columns
+    stations = {a.unique_id: VEC_STATION_COLORS[a.unique_id] for a in
+                model.schedule.get_agents_by_type(VECStationAgent)}
+    for station_id, color in stations.items():
         df[station_id].plot(ax=ax, color=color)
 
     ax.set_title('Distances from VEC stations')
@@ -156,8 +99,9 @@ def make_render_station_vehicle_count_chart(tail=0):
         if tail > 0:
             df = df.tail(tail)
 
-        for station_id, color in VEC_STATION_COLORS.items():
-            assert station_id in df.columns
+        stations = {a.unique_id: VEC_STATION_COLORS[a.unique_id] for a in
+                    model.schedule.get_agents_by_type(VECStationAgent)}
+        for station_id, color in stations.items():
             df[station_id].plot(ax=ax, color=color)
 
         ax.set_title('Vehicle count at VEC stations')
@@ -179,15 +123,10 @@ def make_render_station_load_chart(tail=0):
         if tail > 0:
             df = df.tail(tail)
 
-        # stations = {a.unique_id: a for a in model.schedule.get_agents_by_type(capacity_vanet.VECStationAgent)}
-        for station_id, color in VEC_STATION_COLORS.items():
-            # station = stations[station_id]
-            assert station_id in df.columns
+        stations = {a.unique_id: VEC_STATION_COLORS[a.unique_id] for a in
+                    model.schedule.get_agents_by_type(VECStationAgent)}
+        for station_id, color in stations.items():
             df[station_id].plot(ax=ax, color=color)
-
-            # if hasattr(station, "capacity"):
-            #     lightened_color = lighten_color(color)
-            #     ax.axhline(y=station.capacity, color=lightened_color, linestyle='--')
 
         ax.axhline(y=1, color='gray', linestyle='--')
 
@@ -210,7 +149,6 @@ def render_vehicle_loads(model: VECModel):
     last_step_loads = last_step_loads.dropna()
     vehicle_dict = {agent.unique_id: agent for agent in model.schedule.get_agents_by_type(VehicleAgent)}
     colors = [VEC_STATION_COLORS[vehicle_dict[vehicle_id].station.unique_id] for vehicle_id in last_step_loads.index]
-    # last_step_loads.plot(kind='bar', ax=ax, color=colors)
     ax.bar(last_step_loads.index, last_step_loads.values.flatten(), color=colors)
 
     ax.set_title('Vehicle loads')
