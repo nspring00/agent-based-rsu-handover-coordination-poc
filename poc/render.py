@@ -8,10 +8,18 @@ from poc.model import VehicleAgent, VECStationAgent, VECModel
 
 
 def render_model_with_bg(background):
+    """
+    Create a render function that renders the model with a background image.
+    """
+
     return lambda model: render_model(model, background)
 
 
 def render_model(model: VECModel, background=None):
+    """
+    Render the model with the given background image.
+    """
+
     fig = Figure()
     ax = fig.subplots()
 
@@ -38,6 +46,10 @@ def render_model(model: VECModel, background=None):
 
 
 def render_model_orientations(model: VECModel):
+    """
+    Render the model with arrows indicating the orientation of the vehicles.
+    """
+
     fig = Figure()
     ax = fig.subplots()
 
@@ -70,6 +82,10 @@ def render_model_orientations(model: VECModel):
 
 
 def render_distance_chart(model: VECModel):
+    """
+    Render a chart showing the distances of vehicles from VEC stations.
+    """
+
     fig = Figure()
     ax = fig.subplots()
 
@@ -89,6 +105,10 @@ def render_distance_chart(model: VECModel):
 
 
 def make_render_station_vehicle_count_chart(tail=0):
+    """
+    Create a render function that renders a chart showing the vehicle count at VEC stations.
+    """
+
     def render_station_vehicle_count_chart(model: VECModel):
         fig = Figure()
         ax = fig.subplots()
@@ -113,6 +133,10 @@ def make_render_station_vehicle_count_chart(tail=0):
 
 
 def make_render_station_load_chart(tail=0):
+    """
+    Create a render function that renders a chart showing the utilization of VEC stations.
+    """
+
     def render_station_load_chart(model: VECModel):
         fig = Figure()
         ax = fig.subplots()
@@ -139,6 +163,10 @@ def make_render_station_load_chart(tail=0):
 
 
 def render_vehicle_loads(model: VECModel):
+    """
+    Render a bar chart showing the loads of vehicles.
+    """
+
     fig = Figure()
     ax = fig.subplots()
 
@@ -157,6 +185,7 @@ def render_vehicle_loads(model: VECModel):
     solara.FigureMatplotlib(fig)
 
 
+# Colors for VEC stations
 VEC_STATION_COLORS = {
     10001: "blue",
     10002: "orange",

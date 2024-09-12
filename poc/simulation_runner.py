@@ -25,11 +25,8 @@ assert np.isclose(STEPS_PER_SECOND * TIME_STEP_S, 1.0, rtol=1e-09, atol=1e-09), 
 def extract_model_metrics(model, model_name):
     """
     Prints the evaluation metrics for a given model.
-
-    Parameters:
-    - model: The model object to extract metrics from.
-    - model_name: A string representing the name or identifier of the model.
     """
+
     df = model.datacollector.get_model_vars_dataframe()
     print(f"{model_name} Success: {df['TotalSuccessfulHandoverCount'].iloc[-1]}")
     print(f"{model_name} Failed: {df['TotalFailedHandoverCount'].iloc[-1]}")
@@ -56,6 +53,10 @@ def extract_model_metrics(model, model_name):
 
 
 def run_model(params, max_steps=None):
+    """
+    Run a model with the given parameters and return the evaluation metrics.
+    """
+
     logging.disable(logging.CRITICAL)
 
     scenario, rsu_config_name, model_name, strategy_key, load_update_interval, seed, _, strategy_config = params
@@ -83,7 +84,7 @@ def run_model(params, max_steps=None):
     return params, extract_model_metrics(model, model_name)
 
 
-# Define parameter ranges for DefaultOffloadingStrategy
+# Define parameter ranges for ARHCStrategy
 overload_threshold_values = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 leaving_threshold_values = [0]
 imp_ho_timer_values = [0]
@@ -91,7 +92,11 @@ alt_ho_hysteresis_values = [0, 0.05, 0.1]
 alt_suitability_min_values = [0.2, 0.25, 0.3, 0.35, 0.4]
 
 
-def generate_default_strategy_configs(scenario, rsu_config):
+def generate_arhc_strategy_configs(scenario, rsu_config):
+    """
+    Generate a list of configurations for the ARHCStrategy based on the parameter ranges.
+    """
+
     param_grid = itertools.product(
         overload_threshold_values,
         leaving_threshold_values,
@@ -124,6 +129,10 @@ BEST_ARHC_CONFIG = {
 
 
 def store_results(results, filename):
+    """
+    Store the results of the evaluation metrics in a CSV file.
+    """
+
     results.sort(key=lambda x: (not x[1][0].endswith('-Oracle'), x[1][0]))
 
     min_handovers = min(results, key=lambda x: x[1][1])[1][1]
@@ -152,18 +161,11 @@ def store_results(results, filename):
             f.write(",".join(map(str, result[1])) + "\n")
 
 
-def create_run_model_with_steps(max_steps):
-    def run_model_with_steps(params):
-        return run_model(params, max_steps)
-
-    return run_model_with_steps
-
-
-def run_model_1000(params):
-    return run_model(params, max_steps=1000)
-
-
 def eval_strategy_params():
+    """
+    Evaluate the ARHCStrategy parameter configurations for the Creteil morning scenario.
+    """
+
     start = time.time()
 
     scenario = "creteil-morning"
@@ -197,6 +199,10 @@ def eval_strategy_params():
 
 
 def run_benchmarks(scenario, rsu_config):
+    """
+    Run the benchmarks for the given scenario and RSU configuration.
+    """
+
     start = time.time()
 
     strategies = [
@@ -213,7 +219,6 @@ def run_benchmarks(scenario, rsu_config):
         (scenario, rsu_config, "ARHC-30s", "default", 30, SEED, None, BEST_ARHC_CONFIG),
         (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
         (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
-        # (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
         (scenario, rsu_config, "LatestHO", "latest", 1, SEED, 1264, None),
     ]
 
@@ -236,6 +241,10 @@ def run_benchmarks(scenario, rsu_config):
 
 
 def run_all_benchmarks():
+    """
+    Run the benchmarks for all scenarios and RSU configurations.
+    """
+
     configs = [
         ("creteil-morning", "4-full"),
         ("creteil-morning", "4-half"),
@@ -259,6 +268,10 @@ def run_all_benchmarks():
 
 
 def investigate_min_qos(trace, rsu_config_name, strategy):
+    """
+    Investigate the minimum QoS values for the given trace and RSU configuration.
+    """
+
     trace_loader = SIMULATION_CONFIGS[trace]["traces"]
     rsu_config = SIMULATION_CONFIGS[trace][rsu_config_name]
     model = VECModel(strategy, rsu_config, DynamicVehicleLoadGenerator(seed=SEED), trace_loader(),
@@ -299,6 +312,10 @@ def investigate_min_qos(trace, rsu_config_name, strategy):
 
 
 def plot_qos_grid(trace, rsu_config_name, filename='qos_grid.npy', min=True):
+    """
+    Plot the QoS grid heatmap for the given trace and RSU configuration.
+    """
+
     qos_grid = np.load(filename)
     rsu_config = SIMULATION_CONFIGS[trace][rsu_config_name]
 
@@ -355,8 +372,8 @@ if __name__ == "__main__":
     # eval_strategy_params()
     # run_all_benchmarks()
     run_benchmarks("creteil-morning", "9-half")
-    # investigate_min_qos("creteil-morning", "3-fail-half", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
-    # investigate_min_qos("creteil-morning", "3-fail-full", DefaultOffloadingStrategy(**BEST_DEFAULT_CONFIG))
+    # investigate_min_qos("creteil-morning", "3-fail-half", ARHCStrategy(**BEST_ARHC_CONFIG))
+    # investigate_min_qos("creteil-morning", "3-fail-full", ARHCStrategy(**BEST_ARHC_CONFIG))
     # plot_qos_grid("creteil-morning", "4-half", "results_creteil-morning_4-half_heatmap_qos_min.npy", min=True)
     # plot_qos_grid("creteil-morning", "9-quarter", "results_creteil-morning_9-quarter_heatmap_qos_min.npy", min=True)
     # plot_qos_grid("qos_grid_min.npy", "Minimum QoS", min=True)

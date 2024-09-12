@@ -14,6 +14,10 @@ from poc.scheduler import RandomActivationBySortedType
 
 
 class RSAgentStrategy(ABC):
+    """
+    A strategy for handling offloading in a VEC station.
+    """
+
     @abstractmethod
     def handle_offloading(self, station: "VECStationAgent"):
         pass
@@ -25,6 +29,10 @@ class RSAgentStrategy(ABC):
 
 
 class VehicleLoadGenerator(ABC):
+    """
+    A generator for vehicle loads.
+    """
+
     @abstractmethod
     def compute_offloaded_load(self, vehicle: "VehicleAgent"):
         """
@@ -59,6 +67,10 @@ class VehicleAgent(Agent):
         self.pos = (first_trace['vehicle_x'], first_trace['vehicle_y'])
 
     def do_step(self):
+        """
+        Perform a single step of the vehicle agent.
+        """
+
         _, state = next(self.trace_iterator)
         assert state['timestep_time'] == self.trace_i + self.trace.first_ts, "Time step mismatch"
         self.trace_i += 1
@@ -70,12 +82,20 @@ class VehicleAgent(Agent):
         self.offloaded_load = self.load_gen.compute_offloaded_load(self)
 
     def step(self):
+        """
+        Perform a single step of the vehicle agent.
+        """
+
         if self.invocation % self.steps_per_second == 0:
             self.do_step()
 
         self.invocation += 1
 
     def count_nearby_vehicles(self) -> int:
+        """
+        Count the number of nearby vehicles.
+        """
+
         count = 0
         nearby_dist = 5
         for agent in self.model.schedule.get_agents_by_type(VehicleAgent):
@@ -86,6 +106,10 @@ class VehicleAgent(Agent):
 
     @property
     def rsu_distance(self):
+        """
+        Calculate the distance to the station.
+        """
+
         return distance(self.pos, self.station.pos)
 
     def __repr__(self):
@@ -112,39 +136,69 @@ class VECStationAgent(Agent):
 
     @property
     def load(self):
+        """
+        Calculate the load of the station.
+        """
+
         return sum([vehicle.offloaded_load for vehicle in self.vehicles])
 
     @property
     def utilization(self):
+        """
+        Calculate the utilization of the station.
+        """
+
         return self.load / self.capacity
 
     @property
     def connected_vehicles(self):
+        """
+        Calculate the number of connected vehicles.
+        """
+
         return len(self.vehicles)
 
     def get_neighbor_load(self, neighbor_id):
+        """
+        Get the load of a neighbor station.
+        """
+
         if self.can_read_neighbor_load:
             return [x.load for x in self.neighbors if x.unique_id == neighbor_id][0]
         return self.neighbor_load[neighbor_id]
 
     def increment_neighbor_load(self, neighbor_id, load):
+        """
+        Increment the load of a neighbor station.
+        """
+
         self.neighbor_load[neighbor_id] += load
         # Might be less than 0 because of delayed load sharing
         if self.neighbor_load[neighbor_id] < 0:
             self.neighbor_load[neighbor_id] = 0
 
     def step(self):
+        """
+        Perform a single step of the VEC station agent.
+        """
+
         self.strategy.handle_offloading(self)
 
     def calculate_vehicle_station_bearing(self, vehicle: VehicleAgent):
-        # Calculate the difference in x and y coordinates
+        """
+        Calculate the angle between the vehicle and the station.
+        """
+
         dx = vehicle.pos[0] - self.pos[0]
         dy = vehicle.pos[1] - self.pos[1]
 
-        # Calculate the angle in radians
         return math.atan2(dy, dx)
 
     def perform_handover(self, to: "VECStationAgent", vehicle: VehicleAgent, cause="range"):
+        """
+        Perform a handover of a vehicle to another station.
+        """
+
         assert self != to, "Cannot hand over to the same station"
         self.vehicles.remove(vehicle)
         to.vehicles.append(vehicle)
@@ -168,6 +222,10 @@ class VECStationAgent(Agent):
             raise ValueError(f"Invalid cause for handover: {cause}")
 
     def report_failed_handover(self):
+        """
+        Report a failed handover.
+        """
+
         # noinspection PyTypeChecker
         model: VECModel = self.model
         model.report_failed_handovers += 1
@@ -192,6 +250,10 @@ class VECStationAgent(Agent):
         return f"VECStation{self.unique_id}"
 
     def is_vehicle_in_range(self, vehicle: VehicleAgent):
+        """
+        Check if a vehicle is within the station's range.
+        """
+
         return distance(self.pos, vehicle.pos) <= self.range
 
 
@@ -288,6 +350,10 @@ class VECModel(Model):
             self.step()
 
     def spawn_vehicle(self, trace_id, step) -> Optional[VehicleAgent]:
+        """
+        Spawn a vehicle at the given step.
+        """
+
         self.vehicle_id += 1
         vehicle = VehicleAgent(self.vehicle_id, self, self.traces[trace_id], self.vehicle_load_gen,
                                self.steps_per_second)
@@ -302,6 +368,9 @@ class VECModel(Model):
         return vehicle
 
     def step(self):
+        """
+        Perform a single step of the model.
+        """
 
         while self.to_remove and self.to_remove[-1].trace.last_ts == self.step_second:
             v = self.to_remove.pop()
@@ -342,12 +411,20 @@ class VECModel(Model):
             self.running = False
 
     def update_shared_load_info(self):
+        """
+        Update the shared load information between stations.
+        """
+
         for station in self.vec_stations:
             for neighbor in self.vec_stations:
                 if neighbor in station.neighbor_load or neighbor in station.neighbors:
                     station.neighbor_load[neighbor.unique_id] = neighbor.load
 
     def report_avg_qos(self):
+        """
+        Report the average QoS.
+        """
+
         qos = compute_qos(self)
         if len(qos) == 0:
             return 1
@@ -358,39 +435,68 @@ class VECModel(Model):
         return sum(qos) / len(qos)
 
     def report_min_qos(self):
+        """
+        Report the minimum QoS.
+        """
+
         qos = compute_qos(self)
         return min(qos, default=1)
 
     def report_avg_qos_load_based(self):
+        """
+        Report the average load-based QoS.
+        """
+
         qos = compute_load_based_qos(self)
         if len(qos) == 0:
             return 1
         return sum(qos) / len(qos)
 
     def report_min_qos_load_based(self):
+        """
+        Report the minimum load-based QoS.
+        """
+
         qos = compute_load_based_qos(self)
         return min(qos, default=1)
 
     def report_avg_qos_range_based(self):
+        """
+        Report the average range-based QoS.
+        """
+
         qos = compute_range_based_qos(self)
         if len(qos) == 0:
             return 1
         return sum(qos) / len(qos)
 
     def report_min_qos_range_based(self):
+        """
+        Report the minimum range-based QoS.
+        """
+
         qos = compute_range_based_qos(self)
         return min(qos, default=1)
 
     def report_gini_load(self):
+        """
+        Report the Gini coefficient of the station loads.
+        """
+
         loads = [station.load for station in self.vec_stations]
         return compute_gini(loads)
 
     def report_vehicle_count(self):
+        """
+        Report the number of vehicles.
+        """
+
         return len(self.agents) - len(self.vec_stations)
 
 
 def compute_gini(array):
     """Compute Gini coefficient of an array."""
+
     array = np.array(array, dtype=np.float64)
     if np.amin(array) < 0:
         array -= np.amin(array)  # Values cannot be negative

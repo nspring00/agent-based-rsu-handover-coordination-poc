@@ -11,11 +11,19 @@ from poc.model import VehicleLoadGenerator, VehicleAgent, RSAgentStrategy, VECSt
 
 
 class StaticVehicleLoadGenerator(VehicleLoadGenerator):
+    """
+    A static vehicle load generator that assigns a fixed offloaded load to each vehicle.
+    """
+
     def compute_offloaded_load(self, vehicle: "VehicleAgent"):
         return 1
 
 
 class ARHCStrategy(RSAgentStrategy):
+    """
+    The ARHC strategy that handles vehicle handovers based on the ARHC algorithm.
+    """
+
     def __init__(self, overload_threshold=0.95, leaving_threshold=0.05, lb_util_hysteresis=0.1,
                  alt_suitability_min=0.2):
         self.overload_threshold = overload_threshold
@@ -24,6 +32,9 @@ class ARHCStrategy(RSAgentStrategy):
         self.alt_suitability_min = alt_suitability_min
 
     def handle_offloading(self, station: VECStationAgent):
+        """
+        Handle the offloading of vehicles at the station.
+        """
 
         # Step 1: Hand-over vehicles that are leaving anyway
         self.handle_vehicle_leaving_range(station)
@@ -45,6 +56,10 @@ class ARHCStrategy(RSAgentStrategy):
                 self.attempt_handover_vehicle(station, vehicle, "range", force=not station.is_vehicle_in_range(vehicle))
 
     def handle_load_balancing_with_neighbors(self, current: VECStationAgent):
+        """
+        Handle load balancing with neighboring stations.
+        """
+
         stations_with_vehicles = itertools.product(current.neighbors, current.vehicles)
         stations_vehicles_suitability = [
             (calculate_station_suitability(s, current.get_neighbor_load(s.unique_id), v), s, v)
@@ -90,6 +105,9 @@ class ARHCStrategy(RSAgentStrategy):
             break
 
     def attempt_handover_vehicle(self, station: VECStationAgent, vehicle: VehicleAgent, cause, force=False) -> bool:
+        """
+        Attempt to hand over a vehicle to a neighboring station.
+        """
 
         neighbors_with_score = [
             (x, calculate_station_suitability(x, station.get_neighbor_load(x.unique_id), vehicle))
@@ -124,6 +142,10 @@ class ARHCStrategy(RSAgentStrategy):
 
 
 class NearestRSUStrategy(RSAgentStrategy):
+    """
+    The nearest RSU strategy that handles vehicle handovers by always handing over to the nearest RSU.
+    """
+
     def handle_offloading(self, station: VECStationAgent):
         # A vehicle should always be connected to the nearest RSU
         # Check for all vehicles that the nearest RSU is the current, otherwise hand over to nearest
@@ -146,6 +168,11 @@ class NearestRSUStrategy(RSAgentStrategy):
 
 
 class LatestPossibleHandoverStrategy(RSAgentStrategy):
+    """
+    The latest possible handover strategy that handles vehicle handovers by always handing over to the latest possible
+    RSU.
+    """
+
     def handle_offloading(self, station: VECStationAgent):
         # We know that all vehicles move before the RSU handover phase
         # Therefore, we only need to check if some vehicles are out of the range of the RSU
@@ -174,6 +201,11 @@ class LatestPossibleHandoverStrategy(RSAgentStrategy):
 
 
 class EarliestPossibleHandoverStrategy(RSAgentStrategy):
+    """
+    The earliest possible handover strategy that handles vehicle handovers by always handing over to the earliest
+    possible RSU.
+    """
+
     def __init__(self, max_recent_connections=2):
         # Track a deque of RSUs to which vehicles were recently connected
         self.previously_connected = defaultdict(lambda: deque(maxlen=max_recent_connections))
@@ -217,34 +249,11 @@ class EarliestPossibleHandoverStrategy(RSAgentStrategy):
                 f"Vehicle {vehicle.unique_id} is out of range"
 
 
-class EarliestPossibleHandoverNoBackStrategy(RSAgentStrategy):
-    def __init__(self, max_recent_connections=2):
-        # Track a deque of RSUs to which vehicles were recently connected
-        self.previously_connected = defaultdict(lambda: deque(maxlen=max_recent_connections))
-        self.max_recent_connections = max_recent_connections
-
-    def handle_offloading(self, station: VECStationAgent):
-        # For each vehicle, check if another RSU is in range which wasn't previously connected
-        # If so, perform handover to closest
-        for vehicle in list(station.vehicles):
-            # Filter stations that are in range
-            in_range_stations = [x for x in station.neighbors
-                                 if x.unique_id not in self.previously_connected[vehicle.unique_id]
-                                 and distance(x.pos, vehicle.pos) <= x.range]
-
-            if not in_range_stations:
-                continue
-
-            # Get the closest station that wasn't previously connected
-            nearest_station = min(in_range_stations, key=lambda x: distance(x.pos, vehicle.pos))
-
-            logging.info(
-                f"Vehicle {vehicle.unique_id} is being handed over to the nearest station {nearest_station.unique_id}")
-            station.perform_handover(nearest_station, vehicle)
-            self.previously_connected[vehicle.unique_id].append(station.unique_id)
-
-
 class DynamicVehicleLoadGenerator(VehicleLoadGenerator):
+    """
+    A dynamic vehicle load generator that assigns a random offloaded load to each vehicle.
+    """
+
     local_computation = 0.91 * units.TERA
     load_min = 1.9 * units.TERA
     load_max = 3 * units.TERA
@@ -261,6 +270,10 @@ class DynamicVehicleLoadGenerator(VehicleLoadGenerator):
 
 
 def is_moving_towards(vehicle_pos, vehicle_orientation, station_pos):
+    """
+    Check if a vehicle is moving towards a station.
+    """
+
     # Convert vehicle orientation to radians for math functions
     rad = math.radians(vehicle_orientation)
 
@@ -321,6 +334,5 @@ STRATEGIES_DICT = {
     "default": ARHCStrategy,
     "nearest": NearestRSUStrategy,
     "earliest": EarliestPossibleHandoverStrategy,
-    "earliest2": EarliestPossibleHandoverNoBackStrategy,
     "latest": LatestPossibleHandoverStrategy,
 }
