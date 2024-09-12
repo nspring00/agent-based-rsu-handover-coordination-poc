@@ -15,7 +15,7 @@ class StaticVehicleLoadGenerator(VehicleLoadGenerator):
         return 1
 
 
-class DefaultOffloadingStrategy(RSAgentStrategy):
+class ARHCStrategy(RSAgentStrategy):
     def __init__(self, overload_threshold=0.95, leaving_threshold=0.05, lb_util_hysteresis=0.1,
                  alt_suitability_min=0.2):
         self.overload_threshold = overload_threshold
@@ -318,8 +318,7 @@ def calculate_station_suitability(station: "VECStationAgent", station_load: floa
 
 
 STRATEGIES_DICT = {
-    # "default": DefaultOffloadingStrategy,
-    "default": DefaultOffloadingStrategy,
+    "default": ARHCStrategy,
     "nearest": NearestRSUStrategy,
     "earliest": EarliestPossibleHandoverStrategy,
     "earliest2": EarliestPossibleHandoverNoBackStrategy,

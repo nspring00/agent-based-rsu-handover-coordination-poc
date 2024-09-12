@@ -115,7 +115,7 @@ def generate_default_strategy_configs(scenario, rsu_config):
     return strategies
 
 
-BEST_DEFAULT_CONFIG = {
+BEST_ARHC_CONFIG = {
     'overload_threshold': 0.7,
     'leaving_threshold': 0,
     'alt_ho_hysteresis': 0.05,
@@ -169,13 +169,13 @@ def eval_strategy_params():
     scenario = "creteil-morning"
     rsu_config = "4-half"
 
-    default_strategies = generate_default_strategy_configs(scenario, rsu_config)
+    arhc_strategies = generate_arhc_strategy_configs(scenario, rsu_config)
     strategies = [
                      (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
                      (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
                      (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),
                      (scenario, rsu_config, "LatestHO", "latest", 1, SEED, 1264, None),
-                 ] + default_strategies
+                 ] + arhc_strategies
 
     i = 0
     results = []
@@ -200,17 +200,17 @@ def run_benchmarks(scenario, rsu_config):
     start = time.time()
 
     strategies = [
-        (scenario, rsu_config, "ARHC-Oracle", "default", 0, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-01s", "default", 1, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-02s", "default", 2, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-03s", "default", 3, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-04s", "default", 4, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-05s", "default", 5, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-10s", "default", 10, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-15s", "default", 15, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-20s", "default", 20, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-25s", "default", 25, SEED, None, BEST_DEFAULT_CONFIG),
-        (scenario, rsu_config, "ARHC-30s", "default", 30, SEED, None, BEST_DEFAULT_CONFIG),
+        (scenario, rsu_config, "ARHC-Oracle", "default", 0, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-01s", "default", 1, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-02s", "default", 2, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-03s", "default", 3, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-04s", "default", 4, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-05s", "default", 5, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-10s", "default", 10, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-15s", "default", 15, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-20s", "default", 20, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-25s", "default", 25, SEED, None, BEST_ARHC_CONFIG),
+        (scenario, rsu_config, "ARHC-30s", "default", 30, SEED, None, BEST_ARHC_CONFIG),
         (scenario, rsu_config, "NearestRSU", "nearest", 1, SEED, 1388, None),
         (scenario, rsu_config, "EarliestHO", "earliest", 1, SEED, 1540, None),
         # (scenario, rsu_config, "EarliestHONoBack", "earliest2", 1, SEED, 1494, None),

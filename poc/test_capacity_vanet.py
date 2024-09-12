@@ -3,7 +3,7 @@ import unittest
 
 from mesa import Model
 
-from poc.strategies import StaticVehicleLoadGenerator, DefaultOffloadingStrategy, is_moving_towards
+from poc.strategies import StaticVehicleLoadGenerator, ARHCStrategy, is_moving_towards
 from poc.model import VehicleAgent, VECStationAgent, VECModel
 
 
@@ -38,7 +38,7 @@ class TestVECStationAgent(unittest.TestCase):
 
         # noinspection PyTypeChecker
         model: VECModel = MockModel()
-        station = VECStationAgent(0, model, DefaultOffloadingStrategy(), (10, 10), 10, 10)
+        station = VECStationAgent(0, model, ARHCStrategy(), (10, 10), 10, 10)
 
         vehicle = VehicleAgent(0, model, None, StaticVehicleLoadGenerator(), 1)
 
