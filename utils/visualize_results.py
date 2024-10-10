@@ -7,7 +7,7 @@ import unidecode
 from matplotlib.patches import Rectangle, Circle
 from matplotlib.ticker import PercentFormatter
 
-from poc.capacity_vanet import get_grid
+from poc.VanetTraceLoader import get_grid
 from poc.render import VEC_STATION_COLORS
 from poc.scenarios import CRETEIL_4_RSU_FULL_CAPA_CONFIG, CRETEIL_9_RSU_FULL_CAPA_CONFIG, \
     CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG
@@ -337,6 +337,92 @@ results_creteil_failure = [
     ("results_creteil-morning_3-fail-half", "Morning Half Capacity"),
 ]
 
+results_tradition_vs_base = [
+    ("results_creteil-morning_4-full", "Sparse & Full Capacity"),
+    ("results_creteil-morning_4-half", "Sparse & Half Capacity"),
+    ("results_creteil-morning_9-full", "Dense & Full Capacity"),
+    ("results_creteil-morning_9-half", "Dense & Half Capacity"),
+    ("results_creteil-morning_9-quarter", "Dense & Quarter Capacity"),
+]
+
+
+def plot_total_ho_frequency(configs, title):
+    # Prepare data
+    data = []
+    for filename, res_title in configs:
+        df = pd.read_csv(f"../results/{filename}.csv")
+        df = df.sort_values(by='Model', key=lambda x: x.map(custom_sort_key))
+        data.append((filename, df, res_title))
+
+    # Extract total handover frequency data
+    ho_data = {}
+    for filename, df, res_title in data:
+        for model in df['Model'].unique():
+            if model.startswith('ARHC-') and model not in ['ARHC-Oracle', 'ARHC-10s', 'ARHC-20s']:
+                continue
+            if model not in ho_data:
+                ho_data[model] = []
+            total_ho = df[df['Model'] == model]['HO_Total'].sum()
+            ho_data[model].append(total_ho)
+
+    # Determine if a break is needed
+    break_threshold = 55000
+    max_value = max(max(counts) for counts in ho_data.values())
+    needs_break = max_value > break_threshold
+
+    w = 2 * len(configs)
+    # Plotting
+    if needs_break:
+        fig, (ax, ax2) = plt.subplots(2, 1, sharex=True, figsize=(w, 8), gridspec_kw={'height_ratios': [1, 6]})
+    else:
+        fig, ax2 = plt.subplots(figsize=(w, 8))
+
+    bar_width = 0.2
+    gap_width = 0.4  # Width of the gap between groups
+    index = np.arange(len(configs)) * (len(ho_data) * bar_width + gap_width)  # Add space between groups
+
+    colors = plt.get_cmap('tab10', len(ho_data))
+
+    for i, (model, counts) in enumerate(ho_data.items()):
+        if needs_break:
+            ax.bar(index + i * bar_width, counts, bar_width, label=model, color=colors(i))
+        ax2.bar(index + i * bar_width, counts, bar_width, label=model, color=colors(i))
+
+    if needs_break:
+        # Set the y-axis limits for the break
+        ax.set_ylim(break_threshold, max_value)
+        ax2.set_ylim(0, break_threshold)
+
+        # Hide the spines between ax and ax2
+        ax.spines['bottom'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax.xaxis.tick_top()
+        ax.tick_params(labeltop=False)  # Don't put tick labels at the top
+        ax2.xaxis.tick_bottom()
+
+        # Add diagonal lines to indicate the break
+        d = .015  # How big to make the diagonal lines in axes coordinates
+        kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+        ax.plot((-d, +d), (-d, +d), **kwargs)  # Top-left diagonal
+        ax.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # Top-right diagonal
+
+        kwargs.update(transform=ax2.transAxes)  # Switch to the bottom axes
+        ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # Bottom-left diagonal
+        ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # Bottom-right diagonal
+
+    ax2.set_xlabel('Configurations')
+    ax2.set_ylabel('Total Handover Frequency')
+    ax2.set_xticks(index + bar_width * (len(ho_data) - 1) / 2)
+    ax2.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center')
+    ax2.legend(title="Handover Coordination Strategy", loc='upper left')
+    ax2.grid(True, linestyle='--', alpha=0.7)
+    if needs_break:
+        ax.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(f'{unidecode.unidecode(title).strip().lower().replace(" ", "_")}_total_handover_frequency.png',
+                format="png", dpi=200)
+    plt.show()
+
 
 # Main function to visualize results
 def main():
@@ -352,9 +438,15 @@ def main():
     # plot_metrics_over_time("creteil-morning", "3-fail-full", "arhc-01s", morning=True)
     # plot_metrics_over_time("creteil-morning", "3-fail-half", "arhc-01s", morning=True)
 
-    plot_rsu_config(CRETEIL_4_RSU_FULL_CAPA_CONFIG, "creteil_4")
-    plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
-    plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
+    # plot_rsu_config(CRETEIL_4_RSU_FULL_CAPA_CONFIG, "creteil_4")
+    # plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
+    # plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
+
+    # Example usage for the first 2 files
+    plot_total_ho_frequency(results_tradition_vs_base[:2], "Total Handover Frequency for Sparse Configurations")
+
+    # Example usage for the last 3 files
+    plot_total_ho_frequency(results_tradition_vs_base[2:], "Total Handover Frequency for Dense Configurations")
 
 
 if __name__ == "__main__":
