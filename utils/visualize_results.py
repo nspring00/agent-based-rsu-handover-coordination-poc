@@ -303,7 +303,7 @@ def plot_rsu_config(rsu_config: list[RsuConfig], name: str):
     ax.set_yticks([])
     fig.tight_layout()
     filename = f'rsu_config_{name}.png'
-    fig.savefig(filename, format='png', dpi=200)
+    fig.savefig(filename, format='png', dpi=200, transparent=True)
     plt.show()
 
 
@@ -346,7 +346,7 @@ results_tradition_vs_base = [
 ]
 
 
-def plot_total_ho_frequency(configs, title):
+def plot_total_ho_frequency(configs, title, field):
     # Prepare data
     data = []
     for filename, res_title in configs:
@@ -362,7 +362,7 @@ def plot_total_ho_frequency(configs, title):
                 continue
             if model not in ho_data:
                 ho_data[model] = []
-            total_ho = df[df['Model'] == model]['HO_Total'].sum()
+            total_ho = df[df['Model'] == model][field].sum()
             ho_data[model].append(total_ho)
 
     # Determine if a break is needed
@@ -414,13 +414,69 @@ def plot_total_ho_frequency(configs, title):
     ax2.set_ylabel('Total Handover Frequency')
     ax2.set_xticks(index + bar_width * (len(ho_data) - 1) / 2)
     ax2.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center')
-    ax2.legend(title="Handover Coordination Strategy", loc='upper left')
+    ax2.legend(title="Handover Coordination Strategy", loc='lower left')
     ax2.grid(True, linestyle='--', alpha=0.7)
     if needs_break:
         ax.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
-    plt.savefig(f'{unidecode.unidecode(title).strip().lower().replace(" ", "_")}_total_handover_frequency.png',
+    plt.savefig(f'{unidecode.unidecode(title).strip().lower().replace(" ", "_")}.png',
                 format="png", dpi=200)
+    plt.show()
+
+
+def plot_qos(configs, title, mean_field, std_field):
+    # Prepare data
+    data = []
+    for filename, res_title in configs:
+        df = pd.read_csv(f"../results/{filename}.csv")
+        df = df.sort_values(by='Model', key=lambda x: x.map(custom_sort_key))
+        data.append((filename, df, res_title))
+
+    # Extract total handover frequency data
+    qos_data = {}
+    for filename, df, res_title in data:
+        for model in df['Model'].unique():
+            if model.startswith('ARHC-') and model not in ['ARHC-Oracle', 'ARHC-10s', 'ARHC-20s']:
+                continue
+            if model not in qos_data:
+                qos_data[model] = []
+            mean = df[df['Model'] == model][mean_field].values
+            std = df[df['Model'] == model][std_field].values
+            for m, s in zip(mean, std):
+                qos_data[model].append(np.random.normal(m, s, 100))
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    bar_width = 0.2
+    small_gap_width = 0.1  # Smaller gap between the first three values
+    large_gap_width = 0.4  # Width of the gap between groups
+    index = np.arange(len(configs)) * (
+            len(qos_data) * bar_width + small_gap_width + large_gap_width)  # Add space between groups
+
+    colors = plt.get_cmap('tab10', len(qos_data))
+    legend_labels = []
+    legend_colors = []
+
+    for i, (model, counts) in enumerate(qos_data.items()):
+        if i >= 3:
+            positions = index + i * bar_width + small_gap_width
+        else:
+            positions = index + i * bar_width
+        color = colors(i)
+        ax.boxplot(counts, positions=positions, widths=bar_width, patch_artist=True, boxprops=dict(facecolor=color))
+        legend_labels.append(model)
+        legend_colors.append(color)
+
+    ax.set_xlabel('Configurations', fontsize=14)
+    ax.set_ylabel('Minimum QoS', fontsize=14)
+    ax.set_xticks(index + bar_width * (len(qos_data) - 1) / 2)
+    ax.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center', fontsize=12)
+    ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=4) for color in legend_colors], labels=legend_labels,
+              title="HO Coordination Strategy", loc='lower left', fontsize=12, title_fontsize=14)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(f'{unidecode.unidecode(title).strip().lower().replace(" ", "_")}.png',
+                format="png", dpi=200, transparent=True)
     plt.show()
 
 
@@ -442,11 +498,20 @@ def main():
     # plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
     # plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
 
-    # Example usage for the first 2 files
-    plot_total_ho_frequency(results_tradition_vs_base[:2], "Total Handover Frequency for Sparse Configurations")
+    # plot_total_ho_frequency(results_tradition_vs_base[:2], "ho_sparse", "HO_Total")
+    # plot_total_ho_frequency(results_tradition_vs_base[2:], "ho_dense", "HO_Total")
 
-    # Example usage for the last 3 files
-    plot_total_ho_frequency(results_tradition_vs_base[2:], "Total Handover Frequency for Dense Configurations")
+    plot_qos([
+        ("results_creteil-morning_4-half", "Sparse / Half"),
+        ("results_creteil-morning_9-half", "Dense / Half"),
+        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+    ], "min_qos", "MinQoSMean", "MinQoSStd")
+
+    # plot_total_ho_frequency(results_tradition_vs_base[:2], "qos_sparse", "MinQoSMean")
+    # plot_total_ho_frequency(results_tradition_vs_base[2:], "qos_dense", "MinQoSMean")
+    # 
+    # plot_total_ho_frequency(results_tradition_vs_base[:2], "lb_sparse", "GiniMean")
+    # plot_total_ho_frequency(results_tradition_vs_base[2:], "lb_dense", "GiniMean")
 
 
 if __name__ == "__main__":
