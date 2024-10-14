@@ -397,7 +397,8 @@ def plot_total_ho_frequency(configs, title, field):
     w = 12
     # Plotting
     if needs_break:
-        fig, (ax, ax2) = plt.subplots(2, 1, sharex=True, figsize=(w, 8), gridspec_kw={'height_ratios': [1, 6]})
+        fig, (ax, ax2) = plt.subplots(2, 1, sharex=True, figsize=(w, 8),
+                                      gridspec_kw={'height_ratios': [1, 6], 'hspace': 0.03})
     else:
         fig, ax2 = plt.subplots(figsize=(w, 8))
 
@@ -431,7 +432,7 @@ def plot_total_ho_frequency(configs, title, field):
         ax2.xaxis.tick_bottom()
 
         # Add diagonal lines to indicate the break
-        d = .015  # How big to make the diagonal lines in axes coordinates
+        d = .010  # How big to make the diagonal lines in axes coordinates
         kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
         ax.plot((-d, +d), (-5 * d, +5 * d), **kwargs)  # Top-left diagonal
         ax.plot((1 - d, 1 + d), (-5 * d, +5 * d), **kwargs)  # Top-right diagonal
@@ -440,7 +441,7 @@ def plot_total_ho_frequency(configs, title, field):
         ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # Bottom-left diagonal
         ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # Bottom-right diagonal
 
-    vertical_line_position = 2 + offset - gap_width / 4
+    vertical_line_position = 2 + offset - gap_width / 4 + 0.02
     if needs_break:
         ax.axvline(x=vertical_line_position, color='gray', linestyle='--')
     ax2.axvline(x=vertical_line_position, color='gray', linestyle='--')
