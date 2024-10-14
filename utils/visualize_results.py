@@ -398,7 +398,7 @@ def plot_total_ho_frequency(configs, title, field):
     # Plotting
     if needs_break:
         fig, (ax, ax2) = plt.subplots(2, 1, sharex=True, figsize=(w, 8),
-                                      gridspec_kw={'height_ratios': [1, 6], 'hspace': 0.03})
+                                      gridspec_kw={'height_ratios': [1, 6], 'hspace': 0.07})
     else:
         fig, ax2 = plt.subplots(figsize=(w, 8))
 
@@ -409,7 +409,7 @@ def plot_total_ho_frequency(configs, title, field):
     index = np.array([0, 1, 2, 3 + offset, 4 + offset, 5 + offset, 6 + offset]) * (
             len(ho_data) * bar_width + gap_width)  # Add space between groups
 
-    colors = plt.get_cmap('tab10', 6)
+    colors = plt.get_cmap('Set1', 6)
 
     for i, counts in enumerate(ho_data):
         color = [colors(i) for _ in range(5)]
@@ -498,13 +498,21 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     # TODO investigate offset and distance between same-group boxplots
     bar_width = 0.2
     small_gap_width = 0.1  # Smaller gap between the first three values
-    large_gap_width = 0.4  # Width of the gap between groups
-    index = np.arange(len(configs)) * (
+    large_gap_width = 0.2  # Width of the gap between groups
+    margin = 0.03
+    offset = 0.2
+    offset_from = 1 if len(configs) == 3 else 2
+    base_arr = np.arange(len(configs))
+    base_arr = base_arr.astype(np.float64)
+    base_arr[offset_from:] += offset
+    index = base_arr * (
             len(qos_data) * bar_width + small_gap_width + large_gap_width)  # Add space between groups
 
-    colors = plt.get_cmap('tab10', len(qos_data))
+    colors = plt.get_cmap('Set1', len(qos_data))
     legend_labels = []
     legend_colors = []
+
+    avg_color = plt.get_cmap('Set1', 10)(7)
 
     for i, (model, counts) in enumerate(qos_data.items()):
         if i >= 3:
@@ -512,9 +520,17 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
         else:
             positions = index + i * bar_width - small_gap_width / 2
         color = colors(i)
-        ax.boxplot(counts, positions=positions, widths=bar_width, patch_artist=True, boxprops=dict(facecolor=color))
+        ax.boxplot(counts, positions=positions, widths=bar_width - margin, patch_artist=True,
+                   boxprops=dict(facecolor=color),
+                   medianprops=dict(color='black'), whiskerprops=dict(color='black'), capprops=dict(color='black'),
+                   flierprops=dict(marker='o', color='gray', alpha=0.4, markersize=2))
+        averages = [np.mean(c) for c in counts]
+        ax.scatter(positions, averages, color=avg_color, s=150, zorder=3, label='Average' if i == 0 else "", marker='D')
         legend_labels.append(model)
         legend_colors.append(color)
+
+    vertical_line_position = offset_from + 0.42
+    ax.axvline(x=vertical_line_position, color='gray', linestyle='--')
 
     ax.set_xlabel('Configurations', fontsize=14)
     ax.set_ylabel(y_axis, fontsize=14)
@@ -523,7 +539,9 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     ax.set_xticks(index + bar_width * (len(qos_data) - 1) / 2)
     ax.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center', fontsize=12)
     legend_pos = "lower left" if field == "MinQoS" else "upper left"
-    ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors], labels=legend_labels,
+    legend_labels = ['ARHC Oracle', 'ARHC 10s', 'ARHC 20s', 'Earliest HO', 'Latest HO', 'Nearest RSU']
+    ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors] +
+                      [plt.Line2D([0], [0], color=avg_color, marker='D', lw=0, markersize=10)], labels=legend_labels + ['Average'],
               title="HO Coordination Strategy", loc=legend_pos, fontsize=12, title_fontsize=14)
     ax.set_title(title, fontsize=20)
     ax.grid(True, linestyle='--', alpha=0.7)
