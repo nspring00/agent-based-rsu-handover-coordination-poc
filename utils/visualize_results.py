@@ -404,7 +404,9 @@ def plot_total_ho_frequency(configs, title, field):
     bar_width = 0.2
     gap_width = 0.2  # Width of the gap between groups
     margin = 0.03
-    index = np.arange(len(ho_data[0])) * (len(ho_data) * bar_width + gap_width)  # Add space between groups
+    offset = 0.4
+    index = np.array([0, 1, 2, 3 + offset, 4 + offset, 5 + offset, 6 + offset]) * (
+            len(ho_data) * bar_width + gap_width)  # Add space between groups
 
     colors = plt.get_cmap('tab10', 6)
 
@@ -438,6 +440,11 @@ def plot_total_ho_frequency(configs, title, field):
         ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # Bottom-left diagonal
         ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # Bottom-right diagonal
 
+    vertical_line_position = 2 + offset - gap_width / 4
+    if needs_break:
+        ax.axvline(x=vertical_line_position, color='gray', linestyle='--')
+    ax2.axvline(x=vertical_line_position, color='gray', linestyle='--')
+
     ax2.set_xlabel('Configurations', fontsize=14)
     ax2.set_ylabel('Number of Handovers', fontsize=14)
     ax2.set_xticks(index + bar_width * (len(ho_data) - 1) / 2)
@@ -446,7 +453,11 @@ def plot_total_ho_frequency(configs, title, field):
     x_ticks.append("Dense")
     ax2.set_xticklabels(x_ticks, rotation=0, ha='center', fontsize=12)
     legend_loc = "lower left" if not needs_break else "upper left"
-    ax2.legend(title="Handover Coordination Strategy", loc=legend_loc, fontsize=12, title_fontsize=14)
+    # ax2.legend(title="Handover Coordination Strategy", loc=legend_loc, fontsize=12, title_fontsize=14)
+    legend_colors = [colors(i) for i in range(6)]
+    legend_labels = ['ARHC Oracle', 'ARHC 10s', 'ARHC 20s', 'Earliest HO', 'Latest HO', 'Nearest RSU']
+    ax2.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors], labels=legend_labels,
+               title="HO Coordination Strategy", loc=legend_loc, fontsize=12, title_fontsize=14)
     title_ax = ax if needs_break else ax2
     title_ax.set_title(
         f"Number of Handovers per Configuration", fontsize=20)
@@ -511,7 +522,7 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     ax.set_xticks(index + bar_width * (len(qos_data) - 1) / 2)
     ax.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center', fontsize=12)
     legend_pos = "lower left" if field == "MinQoS" else "upper left"
-    ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=4) for color in legend_colors], labels=legend_labels,
+    ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors], labels=legend_labels,
               title="HO Coordination Strategy", loc=legend_pos, fontsize=12, title_fontsize=14)
     ax.set_title(title, fontsize=20)
     ax.grid(True, linestyle='--', alpha=0.7)
@@ -547,20 +558,20 @@ def main():
         ("results_creteil-morning_9-quarter", "Dense / Quarter"),
     ], "ho", "HO_Total")
 
-    # plot_boxplot([
-    #     ("results_creteil-morning_4-half", "Sparse / Half"),
-    #     ("results_creteil-morning_9-half", "Dense / Half"),
-    #     ("results_creteil-morning_9-quarter", "Dense / Quarter"),
-    # ], "Minimum QoS", "MinQoS", "Minimum QoS per Configuration", percentage=True)
-    # 
-    # plot_boxplot([
-    #     ("results_creteil-morning_4-full", "Sparse / Full"),
-    #     ("results_creteil-morning_4-half", "Sparse / Half"),
-    #     ("results_creteil-morning_9-full", "Dense / Full"),
-    #     ("results_creteil-morning_9-half", "Dense / Half"),
-    #     ("results_creteil-morning_9-quarter", "Dense / Quarter"),
-    # ], "Load Distribution (Gini Coefficient)", "GiniLoad",
-    #     "Load Distribution Inequality (Gini Coefficient) per Configuration", percentage=False)
+    plot_boxplot([
+        ("results_creteil-morning_4-half", "Sparse / Half"),
+        ("results_creteil-morning_9-half", "Dense / Half"),
+        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+    ], "Minimum QoS", "MinQoS", "Minimum QoS per Configuration", percentage=True)
+
+    plot_boxplot([
+        ("results_creteil-morning_4-full", "Sparse / Full"),
+        ("results_creteil-morning_4-half", "Sparse / Half"),
+        ("results_creteil-morning_9-full", "Dense / Full"),
+        ("results_creteil-morning_9-half", "Dense / Half"),
+        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+    ], "Load Distribution (Gini Coefficient)", "GiniLoad",
+        "Load Distribution Inequality (Gini Coefficient) per Configuration", percentage=False)
 
 
 if __name__ == "__main__":
