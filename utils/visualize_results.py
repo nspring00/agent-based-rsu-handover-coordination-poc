@@ -1,5 +1,7 @@
+from collections import defaultdict
 from datetime import datetime, timedelta
 from enum import IntFlag
+from xml.dom import DOMException
 
 import numpy as np
 import pandas as pd
@@ -356,19 +358,39 @@ def plot_total_ho_frequency(configs, title, field):
         data.append((filename, df, res_title))
 
     # Extract total handover frequency data
-    ho_data = {}
+    ho_data_2 = []
+
+    arhc = ['ARHC-Oracle', 'ARHC-10s', 'ARHC-20s']
+    traditional = ['EarliestHO', 'LatestHO', 'NearestRSU']
+    done = defaultdict(lambda: False)
+
+    group_names = []
+
     for filename, df, res_title in data:
-        for model in df['Model'].unique():
-            if model.startswith('ARHC-') and model not in ['ARHC-Oracle', 'ARHC-10s', 'ARHC-20s']:
-                continue
-            if model not in ho_data:
-                ho_data[model] = []
-            total_ho = df[df['Model'] == model][field].sum()
-            ho_data[model].append(total_ho)
+        group_names.append(res_title)
+        ho_data_2.append([df[df['Model'] == model][field].sum() for model in arhc])
+        is_sparse = '4' in filename
+        if is_sparse and done['sparse']:
+            continue
+        if not is_sparse and done['dense']:
+            continue
+
+        done['sparse' if is_sparse else 'dense'] = True
+        # group_names.append("Sparse" if is_sparse else "Dense")
+        ho_data_2.append([df[df['Model'] == model][field].sum() for model in traditional])
+
+    # Swap entry 1 and 2
+    ho_data_2[1], ho_data_2[2] = ho_data_2[2], ho_data_2[1]
+    # Swap entry 4 and 5_2_2_2
+    ho_data_2[4], ho_data_2[5] = ho_data_2[5], ho_data_2[4]
+    # Swap entry 5 and 6_2_2_2
+    ho_data_2[5], ho_data_2[6] = ho_data_2[6], ho_data_2[5]
+
+    ho_data = list(map(list, zip(*ho_data_2)))
 
     # Determine if a break is needed
     break_threshold = 20000
-    max_value = max(max(counts) for counts in ho_data.values())
+    max_value = max(max(x) for x in ho_data)
     needs_break = max_value > break_threshold
 
     # w = 3 * len(configs)
@@ -380,15 +402,19 @@ def plot_total_ho_frequency(configs, title, field):
         fig, ax2 = plt.subplots(figsize=(w, 8))
 
     bar_width = 0.2
-    gap_width = 0.4  # Width of the gap between groups
-    index = np.arange(len(configs)) * (len(ho_data) * bar_width + gap_width)  # Add space between groups
+    gap_width = 0.2  # Width of the gap between groups
+    margin = 0.03
+    index = np.arange(len(ho_data[0])) * (len(ho_data) * bar_width + gap_width)  # Add space between groups
 
-    colors = plt.get_cmap('tab10', len(ho_data))
+    colors = plt.get_cmap('tab10', 6)
 
-    for i, (model, counts) in enumerate(ho_data.items()):
+    for i, counts in enumerate(ho_data):
+        color = [colors(i) for _ in range(5)]
+        color.insert(2, colors(i + 3))
+        color.append(colors(i + 3))
         if needs_break:
-            ax.bar(index + i * bar_width, counts, bar_width, label=model, color=colors(i))
-        ax2.bar(index + i * bar_width, counts, bar_width, label=model, color=colors(i))
+            ax.bar(index + i * bar_width, counts, bar_width - margin, label="a", color=color, edgecolor='black')
+        ax2.bar(index + i * bar_width, counts, bar_width - margin, label="a", color=color, edgecolor='black')
 
     if needs_break:
         # Set the y-axis limits for the break
@@ -405,8 +431,8 @@ def plot_total_ho_frequency(configs, title, field):
         # Add diagonal lines to indicate the break
         d = .015  # How big to make the diagonal lines in axes coordinates
         kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
-        ax.plot((-d, +d), (-5*d, +5*d), **kwargs)  # Top-left diagonal
-        ax.plot((1 - d, 1 + d), (-5*d, +5*d), **kwargs)  # Top-right diagonal
+        ax.plot((-d, +d), (-5 * d, +5 * d), **kwargs)  # Top-left diagonal
+        ax.plot((1 - d, 1 + d), (-5 * d, +5 * d), **kwargs)  # Top-right diagonal
 
         kwargs.update(transform=ax2.transAxes)  # Switch to the bottom axes
         ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # Bottom-left diagonal
@@ -415,7 +441,10 @@ def plot_total_ho_frequency(configs, title, field):
     ax2.set_xlabel('Configurations', fontsize=14)
     ax2.set_ylabel('Number of Handovers', fontsize=14)
     ax2.set_xticks(index + bar_width * (len(ho_data) - 1) / 2)
-    ax2.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center', fontsize=12)
+    x_ticks = group_names
+    x_ticks.insert(2, "Sparse")
+    x_ticks.append("Dense")
+    ax2.set_xticklabels(x_ticks, rotation=0, ha='center', fontsize=12)
     legend_loc = "lower left" if not needs_break else "upper left"
     ax2.legend(title="Handover Coordination Strategy", loc=legend_loc, fontsize=12, title_fontsize=14)
     title_ax = ax if needs_break else ax2
@@ -510,10 +539,6 @@ def main():
     # plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
     # plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
 
-    # plot_total_ho_frequency([
-    #     ("results_creteil-morning_4-full", "Sparse / Full"),
-    #     ("results_creteil-morning_4-half", "Sparse / Half"),
-    # ], "ho_sparse", "HO_Total")
     plot_total_ho_frequency([
         ("results_creteil-morning_4-full", "Sparse / Full"),
         ("results_creteil-morning_4-half", "Sparse / Half"),
@@ -522,26 +547,20 @@ def main():
         ("results_creteil-morning_9-quarter", "Dense / Quarter"),
     ], "ho", "HO_Total")
 
-    plot_boxplot([
-        ("results_creteil-morning_4-half", "Sparse / Half"),
-        ("results_creteil-morning_9-half", "Dense / Half"),
-        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
-    ], "Minimum QoS", "MinQoS", "Minimum QoS per Configuration", percentage=True)
-
-    plot_boxplot([
-        ("results_creteil-morning_4-full", "Sparse / Full"),
-        ("results_creteil-morning_4-half", "Sparse / Half"),
-        ("results_creteil-morning_9-full", "Dense / Full"),
-        ("results_creteil-morning_9-half", "Dense / Half"),
-        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
-    ], "Load Distribution (Gini Coefficient)", "GiniLoad",
-        "Load Distribution Inequality (Gini Coefficient) per Configuration", percentage=False)
-
-    # plot_total_ho_frequency(results_tradition_vs_base[:2], "qos_sparse", "MinQoSMean")
-    # plot_total_ho_frequency(results_tradition_vs_base[2:], "qos_dense", "MinQoSMean")
-
-    # plot_total_ho_frequency(results_tradition_vs_base[:2], "lb_sparse", "GiniMean")
-    # plot_total_ho_frequency(results_tradition_vs_base[2:], "lb_dense", "GiniMean")
+    # plot_boxplot([
+    #     ("results_creteil-morning_4-half", "Sparse / Half"),
+    #     ("results_creteil-morning_9-half", "Dense / Half"),
+    #     ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+    # ], "Minimum QoS", "MinQoS", "Minimum QoS per Configuration", percentage=True)
+    # 
+    # plot_boxplot([
+    #     ("results_creteil-morning_4-full", "Sparse / Full"),
+    #     ("results_creteil-morning_4-half", "Sparse / Half"),
+    #     ("results_creteil-morning_9-full", "Dense / Full"),
+    #     ("results_creteil-morning_9-half", "Dense / Half"),
+    #     ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+    # ], "Load Distribution (Gini Coefficient)", "GiniLoad",
+    #     "Load Distribution Inequality (Gini Coefficient) per Configuration", percentage=False)
 
 
 if __name__ == "__main__":
