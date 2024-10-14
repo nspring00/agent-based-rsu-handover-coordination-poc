@@ -367,11 +367,12 @@ def plot_total_ho_frequency(configs, title, field):
             ho_data[model].append(total_ho)
 
     # Determine if a break is needed
-    break_threshold = 55000
+    break_threshold = 20000
     max_value = max(max(counts) for counts in ho_data.values())
     needs_break = max_value > break_threshold
 
-    w = 3 * len(configs)
+    # w = 3 * len(configs)
+    w = 12
     # Plotting
     if needs_break:
         fig, (ax, ax2) = plt.subplots(2, 1, sharex=True, figsize=(w, 8), gridspec_kw={'height_ratios': [1, 6]})
@@ -404,8 +405,8 @@ def plot_total_ho_frequency(configs, title, field):
         # Add diagonal lines to indicate the break
         d = .015  # How big to make the diagonal lines in axes coordinates
         kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
-        ax.plot((-d, +d), (-d, +d), **kwargs)  # Top-left diagonal
-        ax.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # Top-right diagonal
+        ax.plot((-d, +d), (-5*d, +5*d), **kwargs)  # Top-left diagonal
+        ax.plot((1 - d, 1 + d), (-5*d, +5*d), **kwargs)  # Top-right diagonal
 
         kwargs.update(transform=ax2.transAxes)  # Switch to the bottom axes
         ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # Bottom-left diagonal
@@ -416,11 +417,10 @@ def plot_total_ho_frequency(configs, title, field):
     ax2.set_xticks(index + bar_width * (len(ho_data) - 1) / 2)
     ax2.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center', fontsize=12)
     legend_loc = "lower left" if not needs_break else "upper left"
-    legend_ax = ax if needs_break else ax2
     ax2.legend(title="Handover Coordination Strategy", loc=legend_loc, fontsize=12, title_fontsize=14)
     title_ax = ax if needs_break else ax2
     title_ax.set_title(
-        f"Number of Handovers ({'Sparse' if '4' in configs[0][0] else 'Dense'})", fontsize=20)
+        f"Number of Handovers per Configuration", fontsize=20)
     ax2.grid(True, linestyle='--', alpha=0.7)
     if needs_break:
         ax.grid(True, linestyle='--', alpha=0.7)
@@ -510,15 +510,17 @@ def main():
     # plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
     # plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
 
+    # plot_total_ho_frequency([
+    #     ("results_creteil-morning_4-full", "Sparse / Full"),
+    #     ("results_creteil-morning_4-half", "Sparse / Half"),
+    # ], "ho_sparse", "HO_Total")
     plot_total_ho_frequency([
         ("results_creteil-morning_4-full", "Sparse / Full"),
         ("results_creteil-morning_4-half", "Sparse / Half"),
-    ], "ho_sparse", "HO_Total")
-    plot_total_ho_frequency([
         ("results_creteil-morning_9-full", "Dense / Full"),
         ("results_creteil-morning_9-half", "Dense / Half"),
         ("results_creteil-morning_9-quarter", "Dense / Quarter"),
-    ], "ho_dense", "HO_Total")
+    ], "ho", "HO_Total")
 
     plot_boxplot([
         ("results_creteil-morning_4-half", "Sparse / Half"),
