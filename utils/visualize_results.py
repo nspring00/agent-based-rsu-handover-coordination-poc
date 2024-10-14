@@ -541,7 +541,127 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     legend_pos = "lower left" if field == "MinQoS" else "upper left"
     legend_labels = ['ARHC Oracle', 'ARHC 10s', 'ARHC 20s', 'Earliest HO', 'Latest HO', 'Nearest RSU']
     ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors] +
-                      [plt.Line2D([0], [0], color=avg_color, marker='D', lw=0, markersize=10)], labels=legend_labels + ['Average'],
+                      [plt.Line2D([0], [0], color=avg_color, marker='D', lw=0, markersize=10)],
+              labels=legend_labels + ['Average'],
+              title="HO Coordination Strategy", loc=legend_pos, fontsize=12, title_fontsize=14)
+    ax.set_title(title, fontsize=20)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(f'{unidecode.unidecode(y_axis).strip().lower().replace(" ", "_")}.png',
+                format="png", dpi=200, transparent=True)
+    plt.show()
+
+
+def plot_boxplot_gini(configs, y_axis, field, title, percentage=False):
+    # Prepare data
+    data = []
+    for filename, res_title in configs:
+        df = pd.read_csv(f"../results/{filename}.csv")
+        df = df.sort_values(by='Model', key=lambda x: x.map(custom_sort_key))
+        data.append((filename, df, res_title))
+
+    # Extract total handover frequency data
+    qos_data = {}
+    for filename, df, res_title in data:
+        for model in df['Model'].unique():
+            if model.startswith('ARHC-') and model not in ['ARHC-Oracle', 'ARHC-10s', 'ARHC-20s']:
+                continue
+            if model not in qos_data:
+                qos_data[model] = []
+            details_file = f"../results/runs/{filename.replace('results', 'result')}_{model.lower()}_model_vars.csv"
+            # Read using pands and extract column MinQos
+            df = pd.read_csv(details_file)
+            qos_values = df[field][1:-1]  # Ignore first and last due to outliers (no vehicles)
+            qos_data[model].append(qos_values)
+
+    ho_data_2 = []
+
+    arhc = ['ARHC-Oracle', 'ARHC-10s', 'ARHC-20s']
+    traditional = ['EarliestHO', 'LatestHO', 'NearestRSU']
+    done = defaultdict(lambda: False)
+
+    group_names = []
+
+    for filename, df, res_title in data:
+        group_names.append(res_title)
+        ho_data_2.append([])
+        for model in arhc:
+            details_file = f"../results/runs/{filename.replace('results', 'result')}_{model.lower()}_model_vars.csv"
+            df = pd.read_csv(details_file)
+            qos_values = df[field][1:-1]  # Ignore first and last due to outliers (no vehicles)
+            ho_data_2[-1].append(qos_values)
+        is_sparse = '4' in filename
+        if is_sparse and done['sparse']:
+            continue
+        if not is_sparse and done['dense']:
+            continue
+
+        ho_data_2.append([])
+        for model in traditional:
+            details_file = f"../results/runs/{filename.replace('results', 'result')}_{model.lower()}_model_vars.csv"
+            df = pd.read_csv(details_file)
+            qos_values = df[field][1:-1]
+            ho_data_2[-1].append(qos_values)
+
+        done['sparse' if is_sparse else 'dense'] = True
+        # group_names.append("Sparse" if is_sparse else "Dense")
+        # ho_data_2.append([df[df['Model'] == model][field].sum() for model in traditional])
+
+    # Swap entry 1 and 2
+    ho_data_2[1], ho_data_2[2] = ho_data_2[2], ho_data_2[1]
+    # Swap entry 4 and 5_2_2_2
+    ho_data_2[4], ho_data_2[5] = ho_data_2[5], ho_data_2[4]
+    # Swap entry 5 and 6_2_2_2
+    ho_data_2[5], ho_data_2[6] = ho_data_2[6], ho_data_2[5]
+
+    qos_data = list(map(list, zip(*ho_data_2)))
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # TODO investigate offset and distance between same-group boxplots
+    bar_width = 0.2
+    small_gap_width = 0.1  # Smaller gap between the first three values
+    large_gap_width = 0.2  # Width of the gap between groups
+    margin = 0.03
+    offset = 0.2
+    offset_from = 3
+    base_arr = np.arange(7)
+    base_arr = base_arr.astype(np.float64)
+    base_arr[offset_from:] += offset
+    index = base_arr * (len(qos_data) * bar_width + large_gap_width)  # Add space between groups
+
+    colors = plt.get_cmap('Set1', 6)
+    legend_colors = []
+
+    for i, counts in enumerate(qos_data):
+        positions = index + (i - 1) * bar_width
+        color = [colors(i) for _ in range(5)]
+        color.insert(2, colors(i + 3))
+        color.append(colors(i + 3))
+        for val, pos, col in zip(counts, positions, color):
+            ax.boxplot([val], positions=[pos], widths=bar_width - margin, patch_artist=True,
+                       boxprops=dict(facecolor=col),
+                       medianprops=dict(color='black'), whiskerprops=dict(color='black'), capprops=dict(color='black'),
+                       flierprops=dict(marker='o', color='gray', alpha=0.4, markersize=2))
+        legend_colors.append(color)
+
+    vertical_line_position = offset_from - 1 + 0.08
+    ax.axvline(x=vertical_line_position, color='gray', linestyle='--')
+
+    ax.set_xlabel('Configurations', fontsize=14)
+    ax.set_ylabel(y_axis, fontsize=14)
+    if percentage:
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.0%}'))
+    ax.set_xticks(index)
+    x_labels = [res_title for _, _, res_title in data]
+    x_labels.insert(2, "Sparse")
+    x_labels.append("Dense")
+    ax.set_xticklabels(x_labels, rotation=0, ha='center', fontsize=12)
+    legend_colors = [colors(i) for i in range(6)]
+    legend_pos = "lower left" if field == "MinQoS" else "upper left"
+    legend_labels = ['ARHC Oracle', 'ARHC 10s', 'ARHC 20s', 'Earliest HO', 'Latest HO', 'Nearest RSU']
+    ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors],
+              labels=legend_labels,
               title="HO Coordination Strategy", loc=legend_pos, fontsize=12, title_fontsize=14)
     ax.set_title(title, fontsize=20)
     ax.grid(True, linestyle='--', alpha=0.7)
@@ -583,7 +703,7 @@ def main():
         ("results_creteil-morning_9-quarter", "Dense / Quarter"),
     ], "Minimum QoS", "MinQoS", "Minimum QoS per Configuration", percentage=True)
 
-    plot_boxplot([
+    plot_boxplot_gini([
         ("results_creteil-morning_4-full", "Sparse / Full"),
         ("results_creteil-morning_4-half", "Sparse / Half"),
         ("results_creteil-morning_9-full", "Dense / Full"),
