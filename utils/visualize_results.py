@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from enum import IntFlag
 
 import numpy as np
 import pandas as pd
@@ -370,7 +371,7 @@ def plot_total_ho_frequency(configs, title, field):
     max_value = max(max(counts) for counts in ho_data.values())
     needs_break = max_value > break_threshold
 
-    w = 2 * len(configs)
+    w = 3 * len(configs)
     # Plotting
     if needs_break:
         fig, (ax, ax2) = plt.subplots(2, 1, sharex=True, figsize=(w, 8), gridspec_kw={'height_ratios': [1, 6]})
@@ -410,21 +411,26 @@ def plot_total_ho_frequency(configs, title, field):
         ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # Bottom-left diagonal
         ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # Bottom-right diagonal
 
-    ax2.set_xlabel('Configurations')
-    ax2.set_ylabel('Total Handover Frequency')
+    ax2.set_xlabel('Configurations', fontsize=14)
+    ax2.set_ylabel('Number of Handovers', fontsize=14)
     ax2.set_xticks(index + bar_width * (len(ho_data) - 1) / 2)
-    ax2.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center')
-    ax2.legend(title="Handover Coordination Strategy", loc='lower left')
+    ax2.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center', fontsize=12)
+    legend_loc = "lower left" if not needs_break else "upper left"
+    legend_ax = ax if needs_break else ax2
+    ax2.legend(title="Handover Coordination Strategy", loc=legend_loc, fontsize=12, title_fontsize=14)
+    title_ax = ax if needs_break else ax2
+    title_ax.set_title(
+        f"Number of Handovers ({'Sparse' if '4' in configs[0][0] else 'Dense'})", fontsize=20)
     ax2.grid(True, linestyle='--', alpha=0.7)
     if needs_break:
         ax.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.savefig(f'{unidecode.unidecode(title).strip().lower().replace(" ", "_")}.png',
-                format="png", dpi=200)
+                format="png", dpi=200, transparent=True)
     plt.show()
 
 
-def plot_qos(configs, title, mean_field, std_field):
+def plot_boxplot(configs, y_axis, field, title, percentage=False):
     # Prepare data
     data = []
     for filename, res_title in configs:
@@ -440,13 +446,15 @@ def plot_qos(configs, title, mean_field, std_field):
                 continue
             if model not in qos_data:
                 qos_data[model] = []
-            mean = df[df['Model'] == model][mean_field].values
-            std = df[df['Model'] == model][std_field].values
-            for m, s in zip(mean, std):
-                qos_data[model].append(np.random.normal(m, s, 100))
+            details_file = f"../results/runs/{filename.replace('results', 'result')}_{model.lower()}_model_vars.csv"
+            # Read using pands and extract column MinQos
+            df = pd.read_csv(details_file)
+            qos_values = df[field][1:-1]  # Ignore first and last due to outliers (no vehicles)
+            qos_data[model].append(qos_values)
 
     fig, ax = plt.subplots(figsize=(12, 8))
 
+    # TODO investigate offset and distance between same-group boxplots
     bar_width = 0.2
     small_gap_width = 0.1  # Smaller gap between the first three values
     large_gap_width = 0.4  # Width of the gap between groups
@@ -459,23 +467,27 @@ def plot_qos(configs, title, mean_field, std_field):
 
     for i, (model, counts) in enumerate(qos_data.items()):
         if i >= 3:
-            positions = index + i * bar_width + small_gap_width
+            positions = index + i * bar_width + small_gap_width / 2
         else:
-            positions = index + i * bar_width
+            positions = index + i * bar_width - small_gap_width / 2
         color = colors(i)
         ax.boxplot(counts, positions=positions, widths=bar_width, patch_artist=True, boxprops=dict(facecolor=color))
         legend_labels.append(model)
         legend_colors.append(color)
 
     ax.set_xlabel('Configurations', fontsize=14)
-    ax.set_ylabel('Minimum QoS', fontsize=14)
+    ax.set_ylabel(y_axis, fontsize=14)
+    if percentage:
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.0%}'))
     ax.set_xticks(index + bar_width * (len(qos_data) - 1) / 2)
     ax.set_xticklabels([res_title for _, _, res_title in data], rotation=0, ha='center', fontsize=12)
+    legend_pos = "lower left" if field == "MinQoS" else "upper left"
     ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=4) for color in legend_colors], labels=legend_labels,
-              title="HO Coordination Strategy", loc='lower left', fontsize=12, title_fontsize=14)
+              title="HO Coordination Strategy", loc=legend_pos, fontsize=12, title_fontsize=14)
+    ax.set_title(title, fontsize=20)
     ax.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
-    plt.savefig(f'{unidecode.unidecode(title).strip().lower().replace(" ", "_")}.png',
+    plt.savefig(f'{unidecode.unidecode(y_axis).strip().lower().replace(" ", "_")}.png',
                 format="png", dpi=200, transparent=True)
     plt.show()
 
@@ -498,18 +510,34 @@ def main():
     # plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
     # plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
 
-    # plot_total_ho_frequency(results_tradition_vs_base[:2], "ho_sparse", "HO_Total")
-    # plot_total_ho_frequency(results_tradition_vs_base[2:], "ho_dense", "HO_Total")
+    plot_total_ho_frequency([
+        ("results_creteil-morning_4-full", "Sparse / Full"),
+        ("results_creteil-morning_4-half", "Sparse / Half"),
+    ], "ho_sparse", "HO_Total")
+    plot_total_ho_frequency([
+        ("results_creteil-morning_9-full", "Dense / Full"),
+        ("results_creteil-morning_9-half", "Dense / Half"),
+        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+    ], "ho_dense", "HO_Total")
 
-    plot_qos([
+    plot_boxplot([
         ("results_creteil-morning_4-half", "Sparse / Half"),
         ("results_creteil-morning_9-half", "Dense / Half"),
         ("results_creteil-morning_9-quarter", "Dense / Quarter"),
-    ], "min_qos", "MinQoSMean", "MinQoSStd")
+    ], "Minimum QoS", "MinQoS", "Minimum QoS per Configuration", percentage=True)
+
+    plot_boxplot([
+        ("results_creteil-morning_4-full", "Sparse / Full"),
+        ("results_creteil-morning_4-half", "Sparse / Half"),
+        ("results_creteil-morning_9-full", "Dense / Full"),
+        ("results_creteil-morning_9-half", "Dense / Half"),
+        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+    ], "Load Distribution (Gini Coefficient)", "GiniLoad",
+        "Load Distribution Inequality (Gini Coefficient) per Configuration", percentage=False)
 
     # plot_total_ho_frequency(results_tradition_vs_base[:2], "qos_sparse", "MinQoSMean")
     # plot_total_ho_frequency(results_tradition_vs_base[2:], "qos_dense", "MinQoSMean")
-    # 
+
     # plot_total_ho_frequency(results_tradition_vs_base[:2], "lb_sparse", "GiniMean")
     # plot_total_ho_frequency(results_tradition_vs_base[2:], "lb_dense", "GiniMean")
 
