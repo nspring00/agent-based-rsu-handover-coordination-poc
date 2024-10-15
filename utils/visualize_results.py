@@ -450,8 +450,8 @@ def plot_total_ho_frequency(configs, title, field):
     ax2.set_ylabel('Number of Handovers', fontsize=14)
     ax2.set_xticks(index + bar_width * (len(ho_data) - 1) / 2)
     x_ticks = group_names
-    x_ticks.insert(2, "Sparse")
-    x_ticks.append("Dense")
+    x_ticks.insert(2, "Sparse\n(cap. indep.)")
+    x_ticks.append("Dense\n(cap. indep.)")
     ax2.set_xticklabels(x_ticks, rotation=0, ha='center', fontsize=12)
     legend_loc = "lower left" if not needs_break else "upper left"
     # ax2.legend(title="Handover Coordination Strategy", loc=legend_loc, fontsize=12, title_fontsize=14)
@@ -513,6 +513,7 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     legend_colors = []
 
     avg_color = plt.get_cmap('Set1', 10)(7)
+    p99_color = plt.get_cmap('Set1', 10)(2)
 
     for i, (model, counts) in enumerate(qos_data.items()):
         if i >= 3:
@@ -525,7 +526,9 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
                    medianprops=dict(color='black'), whiskerprops=dict(color='black'), capprops=dict(color='black'),
                    flierprops=dict(marker='o', color='gray', alpha=0.4, markersize=2))
         averages = [np.mean(c) for c in counts]
+        p99s = [np.percentile(c, 1) for c in counts]
         ax.scatter(positions, averages, color=avg_color, s=150, zorder=3, label='Average' if i == 0 else "", marker='D')
+        ax.scatter(positions, p99s, color=p99_color, s=150, zorder=3, label='P01' if i == 0 else "", marker='X')
         legend_labels.append(model)
         legend_colors.append(color)
 
@@ -541,8 +544,9 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     legend_pos = "lower left" if field == "MinQoS" else "upper left"
     legend_labels = ['ARHC Oracle', 'ARHC 10s', 'ARHC 20s', 'Earliest HO', 'Latest HO', 'Nearest RSU']
     ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors] +
-                      [plt.Line2D([0], [0], color=avg_color, marker='D', lw=0, markersize=10)],
-              labels=legend_labels + ['Average'],
+                      [plt.Line2D([0], [0], color=avg_color, marker='D', lw=0, markersize=10)] +
+                      [plt.Line2D([0], [0], color=p99_color, marker='X', lw=0, markersize=10)],
+              labels=legend_labels + ['Average', 'P01'],
               title="HO Coordination Strategy", loc=legend_pos, fontsize=12, title_fontsize=14)
     ax.set_title(title, fontsize=20)
     ax.grid(True, linestyle='--', alpha=0.7)
@@ -654,8 +658,8 @@ def plot_boxplot_gini(configs, y_axis, field, title, percentage=False):
         plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.0%}'))
     ax.set_xticks(index)
     x_labels = [res_title for _, _, res_title in data]
-    x_labels.insert(2, "Sparse")
-    x_labels.append("Dense")
+    x_labels.insert(2, "Sparse\n(cap. indep.)")
+    x_labels.append("Dense\n(cap. indep.)")
     ax.set_xticklabels(x_labels, rotation=0, ha='center', fontsize=12)
     legend_colors = [colors(i) for i in range(6)]
     legend_pos = "lower left" if field == "MinQoS" else "upper left"
@@ -689,26 +693,28 @@ def main():
     # plot_rsu_config(CRETEIL_9_RSU_FULL_CAPA_CONFIG, "creteil_9")
     # plot_rsu_config(CRETEIL_3_FAIL_RSU_FULL_CAPA_CONFIG, "creteil_3_fail")
 
+    cap_suffix = " Cap."
+
     plot_total_ho_frequency([
-        ("results_creteil-morning_4-full", "Sparse / Full"),
-        ("results_creteil-morning_4-half", "Sparse / Half"),
-        ("results_creteil-morning_9-full", "Dense / Full"),
-        ("results_creteil-morning_9-half", "Dense / Half"),
-        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+        ("results_creteil-morning_4-full", "Sparse NW\nFull" + cap_suffix),
+        ("results_creteil-morning_4-half", "Sparse NW\nHalf" + cap_suffix),
+        ("results_creteil-morning_9-full", "Dense NW\nFull" + cap_suffix),
+        ("results_creteil-morning_9-half", "Dense NW\nHalf" + cap_suffix),
+        ("results_creteil-morning_9-quarter", "Dense NW\nQuarter" + cap_suffix),
     ], "ho", "HO_Total")
 
     plot_boxplot([
-        ("results_creteil-morning_4-half", "Sparse / Half"),
-        ("results_creteil-morning_9-half", "Dense / Half"),
-        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+        ("results_creteil-morning_4-half", "Sparse NW\nHalf" + cap_suffix),
+        ("results_creteil-morning_9-half", "Dense NW\nHalf" + cap_suffix),
+        ("results_creteil-morning_9-quarter", "Dense NW\nQuarter" + cap_suffix),
     ], "Minimum QoS", "MinQoS", "Minimum QoS per Configuration", percentage=True)
 
     plot_boxplot_gini([
-        ("results_creteil-morning_4-full", "Sparse / Full"),
-        ("results_creteil-morning_4-half", "Sparse / Half"),
-        ("results_creteil-morning_9-full", "Dense / Full"),
-        ("results_creteil-morning_9-half", "Dense / Half"),
-        ("results_creteil-morning_9-quarter", "Dense / Quarter"),
+        ("results_creteil-morning_4-full", "Sparse NW\nFull" + cap_suffix),
+        ("results_creteil-morning_4-half", "Sparse NW\nHalf" + cap_suffix),
+        ("results_creteil-morning_9-full", "Dense NW\nFull" + cap_suffix),
+        ("results_creteil-morning_9-half", "Dense NW\nHalf" + cap_suffix),
+        ("results_creteil-morning_9-quarter", "Dense NW\nQuarter" + cap_suffix),
     ], "Load Distribution (Gini Coefficient)", "GiniLoad",
         "Load Distribution Inequality (Gini Coefficient) per Configuration", percentage=False)
 
