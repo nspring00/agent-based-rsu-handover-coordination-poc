@@ -495,7 +495,6 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
 
     fig, ax = plt.subplots(figsize=(12, 8))
 
-    # TODO investigate offset and distance between same-group boxplots
     bar_width = 0.2
     small_gap_width = 0.1  # Smaller gap between the first three values
     large_gap_width = 0.2  # Width of the gap between groups
@@ -513,7 +512,6 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     legend_colors = []
 
     avg_color = plt.get_cmap('Set1', 10)(7)
-    p99_color = plt.get_cmap('Set1', 10)(2)
 
     for i, (model, counts) in enumerate(qos_data.items()):
         if i >= 3:
@@ -524,11 +522,10 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
         ax.boxplot(counts, positions=positions, widths=bar_width - margin, patch_artist=True,
                    boxprops=dict(facecolor=color),
                    medianprops=dict(color='black'), whiskerprops=dict(color='black'), capprops=dict(color='black'),
-                   flierprops=dict(marker='o', color='gray', alpha=0.4, markersize=2))
+                   flierprops=dict(marker='o', color='gray', alpha=0.4, markersize=2),
+                   whis=[1, 99])  # Set lower whisker to 9th percentile and upper whisker to 91st percentile
         averages = [np.mean(c) for c in counts]
-        p99s = [np.percentile(c, 1) for c in counts]
-        ax.scatter(positions, averages, color=avg_color, s=150, zorder=3, label='Average' if i == 0 else "", marker='D')
-        ax.scatter(positions, p99s, color=p99_color, s=150, zorder=3, label='P01' if i == 0 else "", marker='X')
+        ax.scatter(positions, averages, color=color, edgecolors='black', linewidths=1, s=180, zorder=3, label='Average' if i == 0 else "", marker='D')
         legend_labels.append(model)
         legend_colors.append(color)
 
@@ -544,8 +541,7 @@ def plot_boxplot(configs, y_axis, field, title, percentage=False):
     legend_pos = "lower left" if field == "MinQoS" else "upper left"
     legend_labels = ['ARHC Oracle', 'ARHC 10s', 'ARHC 20s', 'Earliest HO', 'Latest HO', 'Nearest RSU']
     ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=12) for color in legend_colors] +
-                      [plt.Line2D([0], [0], color=avg_color, marker='D', lw=0, markersize=10)] +
-                      [plt.Line2D([0], [0], color=p99_color, marker='X', lw=0, markersize=10)],
+                      [plt.Line2D([0], [0], color=avg_color, marker='D', lw=0, markersize=10)],
               labels=legend_labels + ['Average', 'P01'],
               title="HO Coordination Strategy", loc=legend_pos, fontsize=12, title_fontsize=14)
     ax.set_title(title, fontsize=20)
@@ -622,7 +618,6 @@ def plot_boxplot_gini(configs, y_axis, field, title, percentage=False):
 
     fig, ax = plt.subplots(figsize=(12, 8))
 
-    # TODO investigate offset and distance between same-group boxplots
     bar_width = 0.2
     small_gap_width = 0.1  # Smaller gap between the first three values
     large_gap_width = 0.2  # Width of the gap between groups
